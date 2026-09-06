@@ -1,0 +1,157 @@
+"""
+Chat route — main user interaction endpoint.
+
+POST /api/v1/chat  → process a text/voice message through the agent pipeline
+"""
+
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
+
+from voxos.agents.executor.agent import ExecutorAgent
+from voxos.agents.listener.agent import ListenerAgent
+from voxos.agents.overseer.agent import OverseerAgent
+from voxos.agents.strategist.agent import StrategistAgent
+from voxos.core.task_manager.manager import get_task_manager
+from voxos.core.task_manager.models import ChatRequest, ChatResponse
+from voxos.observability.logger import get_logger
+from voxos.observability.metrics import get_metrics
+
+log = get_logger(__name__)
+metrics = get_metrics()
+
+router = APIRouter()
+
+# Agent singletons
+_listener: ListenerAgent | None = None
+_strategist: StrategistAgent | None = None
+_executor: ExecutorAgent | None = None
+_overseer: OverseerAgent | None = None
+
+
+def _get_agents():
+    global _listener, _strategist, _executor, _overseer
+    if _listener is None:
+        _listener = ListenerAgent()
+        _strategist = StrategistAgent()
+        _executor = ExecutorAgent()
+        _overseer = OverseerAgent()
+    return _listener, _strategist, _executor, _overseer
+
+
+@router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
+async def chat(request: ChatRequest) -> ChatResponse:
+    """
+    Main chat endpoint — the entry point for all user interactions.
+    
+    Routes the message through the full agent pipeline:
+    Listener → Strategist → Executor → Overseer
+    
+    For simple queries (get_current_time, etc.) responds in ~1-2 seconds.
+    For complex tasks, may include an approval_id if human approval is required.
+    """
+    session_id = request.session_id or str(uuid.uuid4())
+    listener, strategist, executor, overseer = _get_agents()
+    task_manager = get_task_manager()
+
+    log.info("chat_request", session_id=session_id, message_length=len(request.message))
+    metrics.increment("api.chat_requests")
+
+    # Create task
+    task = task_manager.create_task(
+        session_id=session_id,
+        user_request=request.message,
+        language=request.language,
+    )
+
+    try:
+        # Run the full pipeline
+        task = await task_manager.run_pipeline(
+            task=task,
+            listener=listener,
+            strategist=strategist,
+            executor=executor,
+            overseer=overseer,
+        )
+
+        # Build response text from task result
+        response_text = _build_response(task, request.message)
+
+        # Check for pending approvals
+        from voxos.core.risk_engine.engine import get_risk_engine
+        risk_engine = get_risk_engine()
+        pending = risk_engine.get_pending_approvals()
+        task_approval = next((a for a in pending if a.task_id == task.id), None)
+
+        return ChatResponse(
+            response=response_text,
+            session_id=session_id,
+            task_id=task.id,
+            task_status=task.status.value,
+            intent=task.intent,
+            language=task.language,
+            requires_approval=bool(task_approval),
+            approval_id=task_approval.id if task_approval else None,
+        )
+
+    except Exception as e:
+        log.error("chat_pipeline_error", session_id=session_id, error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Pipeline error: {str(e)}",
+        )
+
+
+def _build_response(task: Any, original_request: str) -> str:
+    """Build a human-readable response from task results."""
+    from voxos.core.task_manager.models import TaskStatus
+
+    if task.status == TaskStatus.COMPLETED and task.result:
+        # Extract the most useful result data
+        for step_id, step_result in task.result.items():
+            if isinstance(step_result, dict) and step_result.get("status") == "SUCCESS":
+                data = step_result.get("data")
+                if isinstance(data, dict):
+                    return _format_result_data(task.intent or "", data)
+
+    if task.status == TaskStatus.FAILED:
+        error = task.error_info or {}
+        return f"I wasn't able to complete that task. {error.get('reason', 'An error occurred.')}"
+
+    if task.status == TaskStatus.WAITING_FOR_APPROVAL:
+        return "This action requires your approval. Please check the approval request."
+
+    # Fallback: summarize what we found
+    return f"Task completed with status: {task.status.value}"
+
+
+def _format_result_data(intent: str, data: dict) -> str:
+    """Format tool result data as a natural language response."""
+    if intent == "get_current_time":
+        return (
+            f"The current time is {data.get('formatted', data.get('datetime', 'unknown'))}."
+        )
+    if intent == "get_system_info":
+        host = data.get("host", {})
+        os_info = data.get("os", {})
+        return (
+            f"System: {os_info.get('system', 'Unknown')} {os_info.get('release', '')}\n"
+            f"Hostname: {host.get('hostname', 'unknown')}\n"
+            f"Uptime: {host.get('uptime_human', 'unknown')}"
+        )
+    if intent in {"get_resources", "check_cpu", "check_memory"}:
+        cpu = data.get("cpu", {})
+        mem = data.get("memory", {})
+        disk = data.get("disk", {})
+        return (
+            f"CPU: {cpu.get('percent', 0):.1f}% used\n"
+            f"Memory: {mem.get('used_gb', 0):.1f}GB / {mem.get('total_gb', 0):.1f}GB ({mem.get('percent', 0):.1f}%)\n"
+            f"Disk: {disk.get('free_gb', 0):.1f}GB free of {disk.get('total_gb', 0):.1f}GB"
+        )
+    # Generic: pretty-print the data
+    import json
+    return json.dumps(data, indent=2, default=str)

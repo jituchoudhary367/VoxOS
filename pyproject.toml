@@ -1,0 +1,138 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "voxos"
+version = "0.1.0"
+description = "VoxOS — Autonomous Multilingual Desktop AI Agent"
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "MIT" }
+
+dependencies = [
+    # --- Web Framework ---
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "httpx>=0.27.0",
+    "websockets>=13.0",
+    "python-multipart>=0.0.9",
+
+    # --- Pydantic & Config ---
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0",
+
+    # --- Database ---
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+
+    # --- Redis ---
+    "redis[hiredis]>=5.1.0",
+
+    # --- LLM ---
+    "openai>=1.50.0",
+    "tiktoken>=0.8.0",
+
+    # --- Voice ---
+    "pipecat-ai[silero,websocket,openai]>=0.0.50",
+    "deepgram-sdk>=3.8.0",
+    "edge-tts>=6.1.12",
+    "pyaudio>=0.2.14",
+
+    # --- Security ---
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-dotenv>=1.0.0",
+
+    # --- Utilities ---
+    "structlog>=24.4.0",
+    "rich>=13.9.0",
+    "tenacity>=9.0.0",
+    "anyio>=4.6.0",
+    "aiofiles>=24.1.0",
+    "psutil>=6.0.0",
+    "langdetect>=1.0.9",
+    "pypdf>=5.1.0",
+    "python-docx>=1.1.0",
+    "openpyxl>=3.1.0",
+    "PySide6>=6.7.0",
+    "keyboard>=0.13.5",
+    "pyinstaller>=6.10.0",
+    "qasync>=0.27.1",
+    "asyncpg>=0.29.0",
+]
+
+[project.optional-dependencies]
+browser = [
+    "playwright>=1.48.0",
+    "beautifulsoup4>=4.12.0",
+    "duckduckgo-search>=6.2.0",
+    "lxml>=5.3.0",
+    "trafilatura>=2.0.0",
+]
+
+documents = [
+    "pypdf>=5.1.0",
+    "python-docx>=1.1.0",
+    "python-pptx>=1.0.0",
+    "openpyxl>=3.1.0",
+    "pandas>=2.2.0",
+    "pillow>=11.0.0",
+]
+
+desktop = [
+    "pyautogui>=0.9.54",
+    "pywinauto>=0.6.8",
+    "pygetwindow>=0.0.9",
+]
+
+vision = [
+    "pillow>=11.0.0",
+    "opencv-python>=4.10.0",
+]
+
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.27.0",
+    "factory-boy>=3.3.0",
+    "faker>=30.0.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+]
+
+all = [
+    "voxos[browser,documents,desktop,vision]",
+]
+
+[project.scripts]
+voxos = "voxos.main:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["voxos"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["voxos"]
+omit = ["tests/*", "alembic/*"]
