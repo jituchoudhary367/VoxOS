@@ -23,9 +23,10 @@ from voxos.core.events.bus import JarvisEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.risk_engine.engine import RiskDecision, get_risk_engine
 from voxos.core.task_manager.models import StepStatus, Task, TaskStep
+from voxos.core.permissions.manager import PermissionManager, get_permission_manager
 from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
-from voxos.tools.base import RiskLevel, ToolResult, ToolStatus
+from voxos.tools.base import ToolResult
 from voxos.tools.registry import get_tool_registry
 
 log = get_logger(__name__)
@@ -35,6 +36,7 @@ metrics = get_metrics()
 class ExecutorInput(BaseModel):
     task: Task
     session_id: str | None = None
+    permissions: PermissionManager | None = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -112,7 +114,10 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
 
             # Execute ready steps (could run in parallel if safe)
             results = await asyncio.gather(
-                *[self._execute_step(s, task, input.session_id) for s in ready],
+                *[
+                    self._execute_step(s, task, input.session_id, input.permissions)
+                    for s in ready
+                ],
                 return_exceptions=False,
             )
 
@@ -156,6 +161,7 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
         step: TaskStep,
         task: Task,
         session_id: str | None,
+        permissions: PermissionManager | None,
     ) -> dict[str, Any]:
         """Execute a single plan step with full security checks."""
         step.status = StepStatus.IN_PROGRESS
@@ -186,6 +192,17 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
                 "status": "FAILED",
                 "error": step.error,
                 "error_code": "TOOL_NOT_FOUND",
+            }
+
+        permission_manager = permissions or get_permission_manager()
+        if not permission_manager.can_use_tool(tool.metadata.name):
+            step.status = StepStatus.FAILED
+            step.error = f"Permission denied for tool '{tool.metadata.name}'"
+            return {
+                "step_id": step.id,
+                "status": "FAILED",
+                "error": step.error,
+                "error_code": "PERMISSION_DENIED",
             }
 
         # 2. Validate arguments

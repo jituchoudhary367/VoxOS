@@ -25,7 +25,6 @@ except ImportError:
 from pipecat.vad.silero import SileroVADAnalyzer
 
 from voxos.voice.bridge import JarvisBridge
-from voxos.config import get_settings
 from voxos.observability.logger import get_logger
 
 log = get_logger(__name__)
@@ -41,6 +40,8 @@ class VoicePipeline:
         self.runner: Optional[PipelineRunner] = None
         self.task: Optional[PipelineTask] = None
         self.bridge: Optional[JarvisBridge] = None
+        self.on_transcript = None
+        self.on_status = None
 
     async def start(self) -> None:
         """Start the voice pipeline locally."""
@@ -67,6 +68,8 @@ class VoicePipeline:
 
         # 3. VoxOS Bridge (our custom FrameProcessor)
         self.bridge = JarvisBridge(session_id=self.session_id)
+        self.bridge.on_transcript = self.on_transcript
+        self.bridge.on_status = self.on_status
 
         # 4. TTS Service
         tts = OpenAITTSService(voice="nova")

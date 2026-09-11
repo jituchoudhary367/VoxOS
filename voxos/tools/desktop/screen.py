@@ -10,7 +10,6 @@ import base64
 import os
 import tempfile
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -49,14 +48,14 @@ class DesktopScreenshotTool(BaseTool):
     def input_schema(self) -> type[BaseModel]:
         return ScreenshotArgs
 
-    async def _execute(self, arguments: dict[str, Any]) -> ToolResult:
+    async def _execute(self, arguments: ScreenshotArgs) -> ToolResult:
         try:
             import mss
         except ImportError:
             return ToolResult.fail("mss package is not installed. Run: pip install mss")
 
-        fmt = arguments.get("format", "png").lower()
-        return_base64 = arguments.get("return_base64", False)
+        fmt = arguments.format.lower()
+        return_base64 = arguments.return_base64
         
         if fmt not in ("png", "jpeg", "jpg"):
             fmt = "png"

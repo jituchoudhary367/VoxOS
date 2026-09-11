@@ -5,12 +5,17 @@ Application Control Tools (Windows).
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+
+from pydantic import BaseModel, Field
 
 from voxos.observability.logger import get_logger
 from voxos.tools.base import BaseTool, ToolMetadata, ToolResult, RiskLevel, VerificationType
 
 log = get_logger(__name__)
+
+
+class ApplicationArgs(BaseModel):
+    name: str = Field(..., description="Application name or executable")
 
 
 class ApplicationOpenTool(BaseTool):
@@ -21,17 +26,19 @@ class ApplicationOpenTool(BaseTool):
             description="Open an application by name (e.g. 'chrome', 'notepad')",
             risk_level=RiskLevel.MEDIUM,
             requires_confirmation=False,
-            parameters={
-                "name": {"type": "string", "description": "Application name or executable"},
-            },
-            required_parameters=["name"],
             verification_type=VerificationType.AUTOMATIC,
+            timeout_seconds=30,
+            category="applications",
         )
 
-    async def execute(self, arguments: dict[str, Any]) -> ToolResult:
-        app_name = arguments.get("name", "")
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return ApplicationArgs
+
+    async def _execute(self, arguments: ApplicationArgs) -> ToolResult:
+        app_name = arguments.name
         if not app_name:
-            return ToolResult(success=False, error="App name required", tool_name=self.metadata.name)
+            return ToolResult.fail("App name required", "INVALID_ARGUMENT")
             
         try:
             # We'll use start command to open apps
@@ -43,19 +50,14 @@ class ApplicationOpenTool(BaseTool):
             _, stderr = await proc.communicate()
             
             if proc.returncode != 0:
-                return ToolResult(
-                    success=False,
-                    error=f"Failed to open '{app_name}': {stderr.decode()}",
-                    tool_name=self.metadata.name
+                return ToolResult.fail(
+                    f"Failed to open '{app_name}': {stderr.decode()}",
+                    "OPEN_FAILED",
                 )
                 
-            return ToolResult(
-                success=True, 
-                data={"status": "opened", "app": app_name},
-                tool_name=self.metadata.name
-            )
+            return ToolResult.ok(data={"status": "opened", "app": app_name})
         except Exception as e:
-            return ToolResult(success=False, error=str(e), tool_name=self.metadata.name)
+            return ToolResult.fail(str(e), "OPEN_FAILED")
 
 
 class ApplicationCloseTool(BaseTool):
@@ -66,17 +68,19 @@ class ApplicationCloseTool(BaseTool):
             description="Close an application by name",
             risk_level=RiskLevel.MEDIUM,
             requires_confirmation=False,
-            parameters={
-                "name": {"type": "string", "description": "Application name"},
-            },
-            required_parameters=["name"],
             verification_type=VerificationType.AUTOMATIC,
+            timeout_seconds=30,
+            category="applications",
         )
 
-    async def execute(self, arguments: dict[str, Any]) -> ToolResult:
-        app_name = arguments.get("name", "")
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return ApplicationArgs
+
+    async def _execute(self, arguments: ApplicationArgs) -> ToolResult:
+        app_name = arguments.name
         if not app_name:
-            return ToolResult(success=False, error="App name required", tool_name=self.metadata.name)
+            return ToolResult.fail("App name required", "INVALID_ARGUMENT")
             
         try:
             # Taskkill is more robust for closing by image name
@@ -91,24 +95,18 @@ class ApplicationCloseTool(BaseTool):
             
             if proc.returncode != 0:
                 if b"not found" in stderr.lower() or b"not found" in stdout.lower():
-                    return ToolResult(
-                        success=False,
-                        error=f"Application '{exe_name}' is not running",
-                        tool_name=self.metadata.name
+                    return ToolResult.fail(
+                        f"Application '{exe_name}' is not running",
+                        "NOT_FOUND",
                     )
-                return ToolResult(
-                    success=False,
-                    error=f"Failed to close '{exe_name}': {stderr.decode()}",
-                    tool_name=self.metadata.name
+                return ToolResult.fail(
+                    f"Failed to close '{exe_name}': {stderr.decode()}",
+                    "CLOSE_FAILED",
                 )
                 
-            return ToolResult(
-                success=True, 
-                data={"status": "closed", "app": exe_name},
-                tool_name=self.metadata.name
-            )
+            return ToolResult.ok(data={"status": "closed", "app": exe_name})
         except Exception as e:
-            return ToolResult(success=False, error=str(e), tool_name=self.metadata.name)
+            return ToolResult.fail(str(e), "CLOSE_FAILED")
 
 
 def register_application_tools(registry) -> None:

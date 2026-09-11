@@ -16,11 +16,12 @@ async def list_tools():
     
     tools_list = []
     for tool_name, tool in registry._tools.items():
+        metadata = tool.metadata
         tools_list.append({
             "name": tool_name,
-            "description": tool.description,
-            "category": tool.category,
-            "risk_level": tool.risk_level.value,
+            "description": metadata.description,
+            "category": metadata.category,
+            "risk_level": metadata.risk_level.value,
         })
         
     return {"tools": tools_list, "total": len(tools_list)}

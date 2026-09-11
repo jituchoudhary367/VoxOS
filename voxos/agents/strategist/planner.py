@@ -121,12 +121,18 @@ def build_fallback_plan(intent: str, entities: dict[str, Any]) -> TaskPlan:
         "get_system_info": ("system.get_info", {}),
         "get_resources": ("system.get_resources", {}),
         "take_screenshot": ("desktop.screenshot", {}),
-        "list_files": ("filesystem.list", {"path": entities.get("directory", ".")}),
-        "open_application": ("application.open", {"name": entities.get("application", "")}),
-        "close_application": ("application.close", {"name": entities.get("application", "")}),
-        "search_web": ("web_search.search", {"query": entities.get("query", "")}),
+        "list_files": ("os.list_dir", {"dir_path": entities.get("directory", ".")}),
+        "open_application": (
+            "desktop.open_app",
+            {"app_path_or_name": entities.get("application", "")},
+        ),
+        "close_application": (
+            "desktop.close_app",
+            {"window_title": entities.get("application", "")},
+        ),
+        "search_web": ("web.search", {"query": entities.get("query", "")}),
         "browse_url": ("browser.open", {"url": entities.get("url", "")}),
-        "read_file": ("filesystem.read", {"path": entities.get("file_path", "")}),
+        "read_file": ("os.read_file", {"file_path": entities.get("file_path", "")}),
     }
 
     if intent in INTENT_TOOL_MAP:

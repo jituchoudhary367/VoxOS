@@ -22,41 +22,28 @@ TOOL_BASELINE_RISK: dict[str, RiskLevel] = {
     "system.get_info": RiskLevel.LOW,
     "system.get_time": RiskLevel.LOW,
     "system.get_resources": RiskLevel.LOW,
-    "filesystem.list": RiskLevel.LOW,
-    "filesystem.read": RiskLevel.LOW,
+    "os.list_dir": RiskLevel.LOW,
+    "os.read_file": RiskLevel.LOW,
     "desktop.screenshot": RiskLevel.LOW,
-    "application.list": RiskLevel.LOW,
-    "web_search.search": RiskLevel.LOW,
-    "browser.search": RiskLevel.LOW,
+    "desktop.list_apps": RiskLevel.LOW,
+    "web.search": RiskLevel.LOW,
     "document.read": RiskLevel.LOW,
     "document.summarize": RiskLevel.LOW,
-    "memory.retrieve": RiskLevel.LOW,
+    "memory.search": RiskLevel.LOW,
 
     # Moderate — write side-effects
-    "filesystem.create": RiskLevel.MEDIUM,
-    "filesystem.write": RiskLevel.MEDIUM,
-    "filesystem.copy": RiskLevel.MEDIUM,
-    "filesystem.move": RiskLevel.MEDIUM,
-    "filesystem.rename": RiskLevel.MEDIUM,
-    "filesystem.archive": RiskLevel.MEDIUM,
+    "os.write_file": RiskLevel.MEDIUM,
     "browser.open": RiskLevel.MEDIUM,
     "browser.navigate": RiskLevel.MEDIUM,
     "browser.click": RiskLevel.MEDIUM,
     "browser.type": RiskLevel.MEDIUM,
     "browser.screenshot": RiskLevel.LOW,
-    "application.open": RiskLevel.MEDIUM,
-    "application.focus": RiskLevel.LOW,
-    "desktop.click": RiskLevel.MEDIUM,
-    "desktop.type": RiskLevel.MEDIUM,
-    "desktop.scroll": RiskLevel.LOW,
-    "document.create": RiskLevel.MEDIUM,
-    "document.summarize": RiskLevel.LOW,
-    "memory.store": RiskLevel.LOW,
-    "memory.delete": RiskLevel.MEDIUM,
+    "desktop.open_app": RiskLevel.MEDIUM,
+    "desktop.close_app": RiskLevel.MEDIUM,
 
     # High — destructive or privileged
     "filesystem.delete": RiskLevel.HIGH,
-    "terminal.execute": RiskLevel.HIGH,
+    "os.shell_command": RiskLevel.HIGH,
     "terminal.kill_process": RiskLevel.HIGH,
     "application.close": RiskLevel.MEDIUM,
     "system.shutdown": RiskLevel.CRITICAL,
@@ -161,7 +148,7 @@ class RiskPolicy:
         base = get_tool_risk(tool_name)
 
         # Escalate based on arguments
-        if tool_name == "terminal.execute":
+        if tool_name in {"terminal.execute", "os.shell_command"}:
             cmd = args.get("command", "")
             cmd_risk = classify_shell_command(cmd)
             # Take the higher

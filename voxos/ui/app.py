@@ -34,7 +34,7 @@ class JarvisApp(QObject):
         self.session_id = session_id
         
         # UI Elements
-        self.app = QApplication.instance() or QApplication(sys.sys.argv)
+        self.app = QApplication.instance() or QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)  # Keep running in tray
         
         self.window = VoxOSOverlay()
@@ -132,10 +132,9 @@ class JarvisApp(QObject):
         try:
             from voxos.voice.pipeline import VoicePipeline
             self.voice = VoicePipeline(session_id=self.session_id)
-            
-            # Monkey-patch or provide a callback to the bridge so it can emit transcripts
-            self.voice.bridge.on_transcript = lambda text: self.transcript_received.emit(text)
-            self.voice.bridge.on_status = lambda text, color: self.status_changed.emit(text, color)
+
+            self.voice.on_transcript = lambda text: self.transcript_received.emit(text)
+            self.voice.on_status = lambda text, color: self.status_changed.emit(text, color)
             
             await self.voice.start()
         except asyncio.CancelledError:

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -69,8 +68,7 @@ class ReadFileTool(BaseTool):
             safe_path = _resolve_safe_path(args.file_path)
             
             if not safe_path.is_file():
-                return ToolResult(
-                    success=False,
+                return ToolResult.fail(
                     error=f"File not found or is not a file: {safe_path}",
                     error_code="FILE_NOT_FOUND",
                     status="NOT_FOUND",

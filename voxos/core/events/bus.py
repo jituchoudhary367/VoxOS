@@ -12,6 +12,7 @@ Design:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -19,6 +20,7 @@ from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Callable, Coroutine
 
 import redis.asyncio as aioredis
+import certifi
 
 from voxos.config import get_settings
 from voxos.core.events.types import EventType
@@ -77,19 +79,38 @@ class EventBus:
     def __init__(self) -> None:
         self._redis: aioredis.Redis | None = None
         self._handlers: dict[EventType, list[EventHandler]] = {}
+        self._global_handlers: list[EventHandler] = []
         self._connected = False
 
     async def connect(self) -> None:
         """Connect to Redis."""
         settings = get_settings().redis
-        self._redis = aioredis.Redis(
-            host=settings.host,
-            port=settings.port,
-            db=settings.db,
-            password=settings.password,
-            decode_responses=True,
-        )
-        await self._redis.ping()
+        redis_kwargs = {
+            "decode_responses": True,
+            "socket_connect_timeout": 2,
+            "socket_timeout": 2,
+        }
+        if settings.url_override:
+            if settings.url.startswith("rediss://"):
+                redis_kwargs["ssl_ca_certs"] = settings.ca_certs or certifi.where()
+            self._redis = aioredis.from_url(settings.url, **redis_kwargs)
+        else:
+            self._redis = aioredis.Redis(
+                host=settings.host,
+                port=settings.port,
+                db=settings.db,
+                password=settings.password,
+                **redis_kwargs,
+            )
+        try:
+            await asyncio.wait_for(self._redis.ping(), timeout=2.5)
+        except Exception:
+            try:
+                await asyncio.wait_for(self._redis.close(), timeout=1)
+            except Exception:
+                pass
+            self._redis = None
+            raise
         self._connected = True
         log.info("event_bus_connected", host=settings.host, port=settings.port)
 
@@ -114,6 +135,17 @@ class EventBus:
             except Exception as e:
                 log.error(
                     "event_handler_error",
+                    event_type=event.event_type,
+                    handler=handler.__name__,
+                    error=str(e),
+                )
+
+        for handler in self._global_handlers:
+            try:
+                await handler(event)
+            except Exception as e:
+                log.error(
+                    "global_event_handler_error",
                     event_type=event.event_type,
                     handler=handler.__name__,
                     error=str(e),
@@ -150,6 +182,15 @@ class EventBus:
             self._handlers[event_type] = [
                 h for h in self._handlers[event_type] if h is not handler
             ]
+
+    def subscribe_all(self, handler: EventHandler) -> None:
+        """Register an in-process handler for every event type."""
+        if handler not in self._global_handlers:
+            self._global_handlers.append(handler)
+
+    def unsubscribe_all(self, handler: EventHandler) -> None:
+        """Remove a global event handler."""
+        self._global_handlers = [h for h in self._global_handlers if h is not handler]
 
     async def subscribe_redis(
         self,

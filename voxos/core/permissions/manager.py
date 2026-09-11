@@ -54,20 +54,15 @@ DEFAULT_PERMISSIONS: set[Permission] = {
 
 # Tool name → required permission
 TOOL_PERMISSION_MAP: dict[str, Permission] = {
-    "filesystem.list": Permission.FILESYSTEM_READ,
-    "filesystem.read": Permission.FILESYSTEM_READ,
-    "filesystem.create": Permission.FILESYSTEM_WRITE,
-    "filesystem.write": Permission.FILESYSTEM_WRITE,
-    "filesystem.copy": Permission.FILESYSTEM_WRITE,
-    "filesystem.move": Permission.FILESYSTEM_WRITE,
-    "filesystem.rename": Permission.FILESYSTEM_WRITE,
-    "filesystem.delete": Permission.FILESYSTEM_DELETE,
-    "filesystem.archive": Permission.FILESYSTEM_WRITE,
+    "os.list_dir": Permission.FILESYSTEM_READ,
+    "os.read_file": Permission.FILESYSTEM_READ,
+    "os.write_file": Permission.FILESYSTEM_WRITE,
+    "os.shell_command": Permission.TERMINAL_EXECUTE,
     "terminal.execute": Permission.TERMINAL_EXECUTE,
     "terminal.list_processes": Permission.SYSTEM_INFO,
     "terminal.kill_process": Permission.SYSTEM_MODIFY,
     "browser.open": Permission.BROWSER_NAVIGATE,
-    "browser.search": Permission.WEB_SEARCH,
+    "browser.extract": Permission.BROWSER_NAVIGATE,
     "browser.click": Permission.BROWSER_NAVIGATE,
     "browser.type": Permission.BROWSER_FORM,
     "browser.screenshot": Permission.BROWSER_NAVIGATE,
@@ -78,14 +73,15 @@ TOOL_PERMISSION_MAP: dict[str, Permission] = {
     "system.get_time": Permission.SYSTEM_INFO,
     "system.get_resources": Permission.SYSTEM_INFO,
     "desktop.screenshot": Permission.SYSTEM_INFO,
-    "desktop.click": Permission.APPLICATION_CONTROL,
-    "web_search.search": Permission.WEB_SEARCH,
+    "desktop.list_apps": Permission.SYSTEM_INFO,
+    "desktop.open_app": Permission.APPLICATION_CONTROL,
+    "desktop.close_app": Permission.APPLICATION_CONTROL,
+    "web.search": Permission.WEB_SEARCH,
+    "web.extract": Permission.WEB_SEARCH,
     "document.read": Permission.DOCUMENT_READ,
-    "document.create": Permission.DOCUMENT_WRITE,
-    "document.summarize": Permission.DOCUMENT_READ,
-    "memory.store": Permission.MEMORY_WRITE,
-    "memory.retrieve": Permission.MEMORY_READ,
-    "memory.delete": Permission.MEMORY_WRITE,
+    "memory.save": Permission.MEMORY_WRITE,
+    "memory.search": Permission.MEMORY_READ,
+    "code.python_repl": Permission.TERMINAL_EXECUTE,
 }
 
 
@@ -98,15 +94,15 @@ class PermissionManager:
     """
 
     def __init__(self, user_permissions: set[Permission] | None = None) -> None:
-        self._permissions = user_permissions or DEFAULT_PERMISSIONS
+        self._permissions = set(DEFAULT_PERMISSIONS if user_permissions is None else user_permissions)
 
     def can_use_tool(self, tool_name: str) -> bool:
         """Return True if the user's permissions allow this tool."""
         required = TOOL_PERMISSION_MAP.get(tool_name)
         if required is None:
-            # Unknown tool — allow by default (registered tools declare their own risk)
+            # Unknown tools must be denied until explicitly mapped.
             log.debug("permission_unknown_tool", tool=tool_name)
-            return True
+            return False
 
         if Permission.ADMIN in self._permissions:
             return True

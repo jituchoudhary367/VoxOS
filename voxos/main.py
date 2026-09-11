@@ -10,7 +10,9 @@ from voxos.api.app import create_app
 
 app = create_app()
 
-if __name__ == "__main__":
+
+def run() -> None:
+    """Run the VoxOS API using the configured server settings."""
     import uvicorn
     from voxos.config import get_settings
 
@@ -21,5 +23,8 @@ if __name__ == "__main__":
         port=settings.port,
         reload=settings.debug,
         log_level="debug" if settings.debug else "info",
-        access_log=False,  # We use our own middleware logging
+        access_log=False,
     )
+
+if __name__ == "__main__":
+    run()

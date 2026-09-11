@@ -15,12 +15,13 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from voxos.config import get_settings
 from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
+from voxos.api.deps import get_current_user_permissions
 
 log = get_logger(__name__)
 metrics = get_metrics()
@@ -33,7 +34,7 @@ async def lifespan(app: FastAPI):
     log.info(
         "jarvis_starting",
         version="0.1.0",
-        environment=settings.environment,
+        environment=settings.env,
         debug=settings.debug,
     )
 
@@ -88,7 +89,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"] if settings.debug else ["http://localhost:3000"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -100,26 +101,26 @@ def create_app() -> FastAPI:
         request.state.request_id = request_id
         start = time.monotonic()
 
-        with log.bind(request_id=request_id):
-            log.info(
-                "request_started",
-                method=request.method,
-                path=request.url.path,
-            )
-            response: Response = await call_next(request)
-            duration_ms = (time.monotonic() - start) * 1000
+        request_log = log.bind(request_id=request_id)
+        request_log.info(
+            "request_started",
+            method=request.method,
+            path=request.url.path,
+        )
+        response: Response = await call_next(request)
+        duration_ms = (time.monotonic() - start) * 1000
 
-            response.headers["X-Request-ID"] = request_id
-            response.headers["X-Process-Time"] = f"{duration_ms:.1f}ms"
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Process-Time"] = f"{duration_ms:.1f}ms"
 
-            log.info(
-                "request_completed",
-                method=request.method,
-                path=request.url.path,
-                status=response.status_code,
-                duration_ms=round(duration_ms, 1),
-            )
-            metrics.record_latency("api.latency", duration_ms, path=request.url.path)
+        request_log.info(
+            "request_completed",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=round(duration_ms, 1),
+        )
+        metrics.record_latency("api.latency", duration_ms, path=request.url.path)
 
         return response
 
@@ -130,15 +131,20 @@ def create_app() -> FastAPI:
     from voxos.api.routes.approvals import router as approvals_router
     from voxos.api.routes.tools import router as tools_router
     from voxos.api.routes.system import router as system_router
+    from voxos.api.routes.memory import router as memory_router
+    from voxos.api.routes.audit import router as audit_router
     from voxos.api.websocket import router as ws_router
 
     API_PREFIX = "/api/v1"
     app.include_router(health_router, tags=["Health"])
-    app.include_router(chat_router, prefix=API_PREFIX, tags=["Chat"])
-    app.include_router(tasks_router, prefix=API_PREFIX, tags=["Tasks"])
-    app.include_router(approvals_router, prefix=API_PREFIX, tags=["Approvals"])
-    app.include_router(tools_router, prefix=API_PREFIX, tags=["Tools"])
-    app.include_router(system_router, prefix=API_PREFIX, tags=["System"])
+    protected = [Depends(get_current_user_permissions)]
+    app.include_router(chat_router, prefix=API_PREFIX, tags=["Chat"], dependencies=protected)
+    app.include_router(tasks_router, prefix=API_PREFIX, tags=["Tasks"], dependencies=protected)
+    app.include_router(approvals_router, prefix=API_PREFIX, tags=["Approvals"], dependencies=protected)
+    app.include_router(tools_router, prefix=API_PREFIX, tags=["Tools"], dependencies=protected)
+    app.include_router(system_router, prefix=API_PREFIX, tags=["System"], dependencies=protected)
+    app.include_router(memory_router, prefix=API_PREFIX, dependencies=protected)
+    app.include_router(audit_router, prefix=API_PREFIX, dependencies=protected)
     app.include_router(ws_router, tags=["WebSocket"])
 
     return app

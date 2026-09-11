@@ -78,7 +78,12 @@ class FallbackProvider(LLMProvider):
                 yield chunk
 
     async def health_check(self) -> bool:
-        return await self.primary.health_check() or await self.fallback.health_check()
+        results = await asyncio.gather(
+            self.primary.health_check(),
+            self.fallback.health_check(),
+            return_exceptions=True,
+        )
+        return any(result is True for result in results)
 
 
 class LLMRouter:

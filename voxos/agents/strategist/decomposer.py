@@ -17,7 +17,7 @@ class DecompositionHint:
     """
     A hint about how to decompose a complex intent into sub-tasks.
     """
-    primary_tool: str
+    primary_tool: str | None
     pre_steps: list[dict[str, Any]] = field(default_factory=list)
     post_steps: list[dict[str, Any]] = field(default_factory=list)
 
@@ -28,16 +28,16 @@ class DecompositionHint:
 
 DECOMPOSITION_RULES: dict[str, DecompositionHint] = {
     "research_topic": DecompositionHint(
-        primary_tool="web_search.search",
+        primary_tool="web.search",
         post_steps=[
-            {"action": "Extract key information", "tool": "web_search.extract"},
-            {"action": "Summarize findings", "tool": "document.summarize"},
+            {"action": "Extract key information", "tool": "web.extract"},
+            {"action": "Summarize findings", "tool": None},
         ],
     ),
     "create_report": DecompositionHint(
-        primary_tool="document.create",
+        primary_tool=None,
         pre_steps=[
-            {"action": "Search for information", "tool": "web_search.search"},
+            {"action": "Search for information", "tool": "web.search"},
         ],
     ),
     "browse_and_fill_form": DecompositionHint(
@@ -129,8 +129,6 @@ def estimate_complexity(plan: TaskPlan) -> str:
     """
     step_count = len(plan.steps)
     has_high_risk = plan.estimated_risk in {"HIGH", "CRITICAL"}
-    has_dependencies = any(s.depends_on for s in plan.steps)
-
     if step_count <= 1 and not has_high_risk:
         return "SIMPLE"
     elif step_count <= 3 and not has_high_risk:

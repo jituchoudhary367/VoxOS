@@ -110,7 +110,12 @@ class RiskEngine:
 
         # For terminal/filesystem operations, do additional classification
         cmd_classification: ClassificationResult | None = None
-        if meta.name in {"terminal.execute", "filesystem.delete", "filesystem.archive"}:
+        if meta.name in {
+            "terminal.execute",
+            "os.shell_command",
+            "filesystem.delete",
+            "filesystem.archive",
+        }:
             cmd_classification = self._classifier.classify_tool_operation(
                 meta.name, arguments
             )
@@ -249,7 +254,6 @@ class RiskEngine:
 
     def get_pending_approvals(self) -> list[ApprovalRequest]:
         """Return all non-expired pending approvals."""
-        now = datetime.now(timezone.utc)
         return [
             a for a in self._pending_approvals.values()
             if a.status == "PENDING" and not a.is_expired()

@@ -76,6 +76,20 @@ class ToolRegistry:
     def tool_count(self) -> int:
         return len(self._tools)
 
+    def get_all_tools_metadata(self) -> list[dict[str, Any]]:
+        """Return JSON-friendly metadata for legacy API consumers."""
+        return [
+            {
+                "name": metadata.name,
+                "description": metadata.description,
+                "category": metadata.category,
+                "risk_level": metadata.risk_level.value,
+                "schema": tool.input_schema.model_json_schema(),
+            }
+            for tool in self._tools.values()
+            for metadata in [tool.metadata]
+        ]
+
     def to_openai_tools(
         self,
         names: list[str] | None = None,

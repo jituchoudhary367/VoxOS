@@ -18,7 +18,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
@@ -33,6 +33,7 @@ class RiskLevel(str, Enum):
     """Risk classification for tool operations."""
 
     LOW = "LOW"           # Read-only, no side effects (e.g., get_info, list_files)
+    SAFE = "LOW"           # Backwards-compatible alias for LOW
     MEDIUM = "MEDIUM"     # Reversible changes (e.g., create_file, install_package)
     HIGH = "HIGH"         # Potentially destructive (e.g., delete_file, execute_script)
     CRITICAL = "CRITICAL" # Irreversible/dangerous (e.g., format_disk, rm -rf /)
@@ -148,9 +149,31 @@ class BaseTool(ABC):
     """
 
     @property
-    @abstractmethod
     def metadata(self) -> ToolMetadata:
-        """Tool metadata for registry and risk engine."""
+        """Tool metadata for registry and risk engine.
+
+        The fallback keeps older third-party tools compatible while built-in
+        tools should continue to provide explicit metadata.
+        """
+        return ToolMetadata(
+            name=self.name,
+            description=self.description,
+            risk_level=RiskLevel.LOW,
+            requires_confirmation=False,
+            verification_type=VerificationType.NONE,
+            timeout_seconds=30,
+            category="general",
+        )
+
+    @property
+    def name(self) -> str:
+        """Compatibility name for older tools that do not define metadata."""
+        return self.__class__.__name__
+
+    @property
+    def description(self) -> str:
+        """Compatibility description for older tools."""
+        return self.__class__.__doc__ or self.name
 
     @property
     @abstractmethod
@@ -164,7 +187,7 @@ class BaseTool(ABC):
         Called by execute() which wraps with timing and logging.
         """
 
-    async def execute(self, args: BaseModel) -> ToolResult:
+    async def execute(self, args: BaseModel | dict[str, Any]) -> ToolResult:
         """
         Execute the tool with timing, error handling, and logging.
         
@@ -179,6 +202,8 @@ class BaseTool(ABC):
 
         start = time.monotonic()
         try:
+            if isinstance(args, dict):
+                args = self.input_schema.model_validate(args)
             result = await self._execute(args)
             result.duration_ms = (time.monotonic() - start) * 1000
 
@@ -194,7 +219,6 @@ class BaseTool(ABC):
             return result
 
         except TimeoutError:
-            duration_ms = (time.monotonic() - start) * 1000
             log.warning("tool_timeout", tool=meta.name, timeout_s=meta.timeout_seconds)
             metrics.increment("tool.calls", tool=meta.name, status="TIMEOUT")
             return ToolResult.fail(
@@ -202,8 +226,14 @@ class BaseTool(ABC):
                 error_code="TIMEOUT",
                 status=ToolStatus.TIMEOUT,
             )
+        except ValueError as e:
+            log.warning("tool_validation_error", tool=meta.name, error=str(e))
+            return ToolResult.fail(
+                error=f"Invalid arguments for '{meta.name}': {str(e)}",
+                error_code="VALIDATION_ERROR",
+                status=ToolStatus.VALIDATION_ERROR,
+            )
         except Exception as e:
-            duration_ms = (time.monotonic() - start) * 1000
             log.error("tool_error", tool=meta.name, error=str(e), exc_info=True)
             metrics.increment("tool.calls", tool=meta.name, status="FAILED")
             return ToolResult.fail(

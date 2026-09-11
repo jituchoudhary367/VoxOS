@@ -8,7 +8,6 @@ They represent tasks flowing through the agent system.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
@@ -20,6 +19,7 @@ class TaskStatus(str, Enum):
     """Full task lifecycle states."""
 
     CREATED = "CREATED"
+    PENDING = "CREATED"  # Backwards-compatible alias
     UNDERSTANDING = "UNDERSTANDING"
     PLANNING = "PLANNING"
     WAITING_FOR_APPROVAL = "WAITING_FOR_APPROVAL"

@@ -27,7 +27,7 @@ target_metadata = Base.metadata
 def get_url():
     """Retrieve database URL from Pydantic settings."""
     settings = get_settings()
-    return settings.db.database_url
+    return settings.db.url
 
 
 def run_migrations_offline() -> None:

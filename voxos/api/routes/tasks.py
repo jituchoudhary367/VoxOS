@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
-
 from voxos.core.task_manager.manager import get_task_manager
-from voxos.core.task_manager.models import TaskStatus
 from voxos.observability.logger import get_logger
 
 router = APIRouter()
@@ -19,6 +16,13 @@ async def list_tasks(session_id: str | None = None, limit: int = 20):
     manager = get_task_manager()
     tasks = manager.list_tasks(session_id=session_id, limit=limit)
     return [t.to_summary() for t in tasks]
+
+
+@router.get("/tasks/_stats", response_model=dict)
+async def task_stats():
+    """Return task counts by status."""
+    manager = get_task_manager()
+    return {"stats": manager.stats(), "total": sum(manager.stats().values())}
 
 
 @router.get("/tasks/{task_id}", response_model=dict)
@@ -38,10 +42,3 @@ async def cancel_task(task_id: str):
     cancelled = await manager.cancel_task(task_id)
     if not cancelled:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found or already finished")
-
-
-@router.get("/tasks/_stats", response_model=dict)
-async def task_stats():
-    """Return task counts by status."""
-    manager = get_task_manager()
-    return {"stats": manager.stats(), "total": sum(manager.stats().values())}

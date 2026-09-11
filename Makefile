@@ -17,8 +17,8 @@ env:  ## Copy .env.example → .env (if .env doesn't exist)
 	@test -f .env || (cp .env.example .env && echo "Created .env — please fill in your API keys")
 
 # -------- Development --------
-dev:  ## Start JARVIS in development mode
-	uvicorn jarvis.main:app --host 0.0.0.0 --port 8000 --reload --log-level info
+dev:  ## Start VoxOS in development mode
+	uvicorn voxos.main:app --host 0.0.0.0 --port 8000 --reload --log-level info
 
 # -------- Database --------
 migrate:  ## Run Alembic migrations
@@ -31,11 +31,11 @@ migrate-down:  ## Roll back last migration
 	alembic downgrade -1
 
 db-shell:  ## Connect to PostgreSQL
-	docker exec -it jarvis_postgres psql -U jarvis -d jarvis
+	docker exec -it voxos_postgres psql -U $${POSTGRES_USER:-voxos} -d $${POSTGRES_DB:-voxos}
 
 # -------- Testing --------
 test:  ## Run all tests
-	pytest tests/ -v --cov=jarvis --cov-report=term-missing
+	pytest tests/ -v --cov=voxos --cov-report=term-missing
 
 test-unit:  ## Run unit tests only
 	pytest tests/unit/ -v
@@ -48,13 +48,13 @@ test-fast:  ## Run tests, skip slow/integration
 
 # -------- Linting --------
 lint:  ## Lint with ruff
-	ruff check jarvis/ tests/
+	ruff check voxos/ tests/
 
 format:  ## Format code with ruff
-	ruff format jarvis/ tests/
+	ruff format voxos/ tests/
 
 typecheck:  ## Type-check with mypy
-	mypy jarvis/
+	mypy voxos/
 
 # -------- Docker --------
 docker-up:  ## Start PostgreSQL + Redis
@@ -81,8 +81,8 @@ clean:  ## Remove Python cache files
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 
-shell:  ## Start Python REPL with app context
-	python -c "import asyncio; from jarvis.config import get_settings; s = get_settings(); print(s.model_dump())"
+shell:  ## Print loaded settings
+	python -c "from voxos.config import get_settings; print(get_settings().model_dump())"
 
-status:  ## Show JARVIS service status
-	@curl -s http://localhost:8000/api/v1/system/status | python -m json.tool 2>/dev/null || echo "JARVIS not running. Run: make dev"
+status:  ## Show VoxOS service status
+	@curl -s http://localhost:8000/api/v1/system/status | python -m json.tool 2>/dev/null || echo "VoxOS not running. Run: make dev"

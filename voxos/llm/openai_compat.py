@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from typing import AsyncIterator
 
-from openai import AsyncOpenAI, APIConnectionError, APIStatusError, RateLimitError
+from openai import AsyncOpenAI, APIConnectionError, RateLimitError
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -157,7 +157,7 @@ class OpenAICompatibleProvider(LLMProvider):
     async def health_check(self) -> bool:
         """Check provider availability with a minimal request."""
         try:
-            await self._client.models.list()
+            await asyncio.wait_for(self._client.models.list(), timeout=5)
             return True
         except Exception as e:
             log.warning("llm_health_check_failed", provider=self._name, error=str(e))

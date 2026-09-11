@@ -22,7 +22,10 @@ from voxos.core.events.bus import JarvisEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.task_manager.models import Task, TaskStatus
 from voxos.database.engine import get_session_factory
+from voxos.database.repositories.session_repo import SessionRepository
 from voxos.database.repositories.task_repo import TaskRepository
+from voxos.config import get_settings
+from voxos.core.permissions.manager import PermissionManager
 from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
 
@@ -41,34 +44,80 @@ class TaskManager:
 
     def __init__(self) -> None:
         self._tasks: dict[str, Task] = {}
+        self._active_tasks = self._tasks
         self._running_tasks: set[str] = set()
+        self._running = False
+
+    async def submit_task(self, user_request: str, session_id: str, db: Any = None) -> Task:
+        """Compatibility wrapper for the original task-manager API."""
+        task = Task(session_id=session_id, user_request=user_request)
+        if db is not None:
+            try:
+                repo = TaskRepository(db)
+                try:
+                    session_value: Any = uuid.UUID(session_id)
+                except ValueError:
+                    session_value = session_id
+                payload = {
+                    "id": uuid.UUID(task.id),
+                    "session_id": session_value,
+                    "user_request": user_request,
+                    "status": task.status.value,
+                    "risk_level": task.risk_level,
+                    "retry_count": task.retry_count,
+                }
+                created = repo.create(payload)
+                if asyncio.iscoroutine(created):
+                    created = await created
+                if isinstance(created, Task):
+                    task = created
+            except Exception as e:
+                if get_settings().is_production:
+                    raise
+                log.warning("legacy_task_submit_db_unavailable", error=str(e))
+        self._tasks[task.id] = task
+        return task
         
     async def _sync_task_to_db(self, task: Task) -> None:
         """Sync in-memory task to database."""
-        factory = get_session_factory()
-        async with factory() as session:
-            repo = TaskRepository(session)
-            db_task = await repo.get(task.id)
-            plan_data = task.plan.model_dump() if task.plan else None
-            
-            task_dict = {
-                "session_id": uuid.UUID(task.session_id),
-                "user_request": task.user_request,
-                "status": task.status.value,
-                "risk_level": task.risk_level,
-                "plan": plan_data,
-                "result": task.result,
-                "error_info": task.error_info,
-                "retry_count": task.retry_count,
-                "approval_status": task.approval_status,
-            }
-            
-            if not db_task:
-                task_dict["id"] = uuid.UUID(task.id)
-                await repo.create(task_dict)
-            else:
-                await repo.update(task.id, task_dict)
-            await session.commit()
+        try:
+            factory = get_session_factory()
+            async with factory() as session:
+                session_id = uuid.UUID(task.session_id)
+                session_repo = SessionRepository(session)
+                if await session_repo.get(session_id) is None:
+                    await session_repo.create({
+                        "id": session_id,
+                        "status": "active",
+                        "session_metadata": {},
+                    })
+
+                repo = TaskRepository(session)
+                db_task = await repo.get(task.id)
+                plan_data = task.plan.model_dump() if task.plan else None
+
+                task_dict = {
+                    "session_id": session_id,
+                    "user_request": task.user_request,
+                    "status": task.status.value,
+                    "risk_level": task.risk_level,
+                    "plan": plan_data,
+                    "result": task.result,
+                    "error_info": task.error_info,
+                    "retry_count": task.retry_count,
+                    "approval_status": task.approval_status,
+                }
+
+                if not db_task:
+                    task_dict["id"] = uuid.UUID(task.id)
+                    await repo.create(task_dict)
+                else:
+                    await repo.update(task.id, task_dict)
+                await session.commit()
+        except Exception as e:
+            if get_settings().is_production:
+                raise
+            log.warning("task_db_sync_unavailable", task_id=task.id, error=str(e))
 
     async def create_task(self, session_id: str, user_request: str, language: str = "en") -> Task:
         """Create a new task, persist it, and register it."""
@@ -156,6 +205,7 @@ class TaskManager:
         strategist: Any,
         executor: Any,
         overseer: Any,
+        permissions: PermissionManager | None = None,
     ) -> Task:
         """
         Run the full Listener → Strategist → Executor → Overseer pipeline.
@@ -163,12 +213,13 @@ class TaskManager:
         This is the main execution loop. Handles retries and replanning.
         """
         self._running_tasks.add(task.id)
+        self._running = True
         metrics.increment("tasks.started")
 
         try:
             async with metrics.async_timer("task.duration", status="unknown"):
                 task = await self._execute_pipeline(
-                    task, listener, strategist, executor, overseer
+                    task, listener, strategist, executor, overseer, permissions
                 )
 
         except asyncio.CancelledError:
@@ -180,6 +231,7 @@ class TaskManager:
             await self.transition(task, TaskStatus.FAILED)
         finally:
             self._running_tasks.discard(task.id)
+            self._running = bool(self._running_tasks)
             metrics.increment(
                 "tasks.completed",
                 status=task.status.value,
@@ -194,6 +246,7 @@ class TaskManager:
         strategist: Any,
         executor: Any,
         overseer: Any,
+        permissions: PermissionManager | None = None,
     ) -> Task:
         """Internal pipeline execution with retry loop."""
         from voxos.agents.listener.agent import ListenerInput
@@ -254,6 +307,7 @@ class TaskManager:
             executor_output = await executor.process(ExecutorInput(
                 task=task,
                 session_id=task.session_id,
+                permissions=permissions,
             ))
 
             # Stage 4: Overseer verification

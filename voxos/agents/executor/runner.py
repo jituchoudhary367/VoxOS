@@ -12,16 +12,15 @@ Handles:
 from __future__ import annotations
 
 import asyncio
-import uuid
 from datetime import datetime, timezone
-from typing import Any
 
 from voxos.core.events.bus import JarvisEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.risk_engine.engine import get_risk_engine
 from voxos.core.risk_engine.approval import get_approval_gateway
-from voxos.core.task_manager.models import Task, TaskStep, StepStatus
-from voxos.tools.base import BaseTool, ToolResult
+from voxos.core.permissions.manager import PermissionManager, get_permission_manager
+from voxos.core.task_manager.models import Task, TaskStep
+from voxos.tools.base import ToolResult
 from voxos.tools.registry import get_tool_registry
 from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
@@ -55,6 +54,7 @@ class ToolRunner:
         step: TaskStep,
         task: Task,
         timeout_seconds: int = 60,
+        permissions: PermissionManager | None = None,
     ) -> ToolResult:
         """
         Execute a single task step.
@@ -64,16 +64,20 @@ class ToolRunner:
         """
         if step.tool is None:
             # No-op step (description-only)
-            return ToolResult(
-                success=True,
-                data={"message": f"Step completed: {step.description}"},
-                tool_name="no-op",
-            )
+            return ToolResult.ok(data={"message": f"Step completed: {step.description}"})
 
         # 1. Look up tool
         tool = self._registry.get(step.tool)
         if tool is None:
             raise ToolRunnerError(f"Tool '{step.tool}' not found in registry")
+
+        permission_manager = permissions or get_permission_manager()
+        if not permission_manager.can_use_tool(tool.metadata.name):
+            return ToolResult.fail(
+                error=f"Permission denied for tool '{tool.metadata.name}'",
+                error_code="PERMISSION_DENIED",
+                status="PERMISSION_DENIED",
+            )
 
         # 2. Risk evaluation
         decision = self._risk_engine.evaluate_tool(
@@ -90,10 +94,9 @@ class ToolRunner:
                 reason=decision.block_reason,
                 task_id=task.id,
             )
-            return ToolResult(
-                success=False,
+            return ToolResult.fail(
                 error=f"Tool blocked: {decision.block_reason}",
-                tool_name=step.tool,
+                error_code="BLOCKED",
             )
 
         # 3. Handle approval if needed
@@ -113,17 +116,9 @@ class ToolRunner:
             )
 
             if approved is None:
-                return ToolResult(
-                    success=False,
-                    error="Approval timed out",
-                    tool_name=step.tool,
-                )
+                return ToolResult.fail(error="Approval timed out", error_code="APPROVAL_TIMEOUT")
             if not approved:
-                return ToolResult(
-                    success=False,
-                    error="Action rejected by user",
-                    tool_name=step.tool,
-                )
+                return ToolResult.fail(error="Action rejected by user", error_code="APPROVAL_REJECTED")
 
         # 4. Emit tool started event
         await self._bus.publish(JarvisEvent(
@@ -174,10 +169,10 @@ class ToolRunner:
                 task_id=task.id,
                 tool=step.tool,
             ))
-            return ToolResult(
-                success=False,
+            return ToolResult.fail(
                 error=f"Tool timed out after {timeout_seconds}s",
-                tool_name=step.tool,
+                error_code="TIMEOUT",
+                status="TIMEOUT",
             )
         except Exception as e:
             log.error("tool_exception", tool=step.tool, error=str(e), exc_info=True)
@@ -187,11 +182,7 @@ class ToolRunner:
                 task_id=task.id,
                 tool=step.tool,
             ))
-            return ToolResult(
-                success=False,
-                error=str(e),
-                tool_name=step.tool,
-            )
+            return ToolResult.fail(error=str(e), error_code="EXECUTION_ERROR")
 
 
 _runner: ToolRunner | None = None

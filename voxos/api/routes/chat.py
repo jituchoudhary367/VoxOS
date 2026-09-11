@@ -9,8 +9,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from voxos.agents.executor.agent import ExecutorAgent
 from voxos.agents.listener.agent import ListenerAgent
@@ -18,6 +17,8 @@ from voxos.agents.overseer.agent import OverseerAgent
 from voxos.agents.strategist.agent import StrategistAgent
 from voxos.core.task_manager.manager import get_task_manager
 from voxos.core.task_manager.models import ChatRequest, ChatResponse
+from voxos.api.deps import get_current_user_permissions
+from voxos.core.permissions.manager import PermissionManager
 from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
 
@@ -44,7 +45,10 @@ def _get_agents():
 
 
 @router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    permissions: PermissionManager = Depends(get_current_user_permissions),
+) -> ChatResponse:
     """
     Main chat endpoint — the entry point for all user interactions.
     
@@ -62,7 +66,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     metrics.increment("api.chat_requests")
 
     # Create task
-    task = task_manager.create_task(
+    task = await task_manager.create_task(
         session_id=session_id,
         user_request=request.message,
         language=request.language,
@@ -76,6 +80,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             strategist=strategist,
             executor=executor,
             overseer=overseer,
+            permissions=permissions,
         )
 
         # Build response text from task result

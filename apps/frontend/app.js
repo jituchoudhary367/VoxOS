@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${API_URL}/tasks?session_id=${sessionId}&limit=10`);
             const data = await res.json();
             
-            if (data.tasks.length === 0) {
+            if (data.length === 0) {
                 taskList.innerHTML = '<li class="empty-state">No recent tasks</li>';
                 return;
             }
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             taskList.innerHTML = '';
             let activeCount = 0;
 
-            data.tasks.forEach(task => {
+            data.forEach(task => {
                 if (['CREATED', 'UNDERSTANDING', 'PLANNING', 'EXECUTING', 'VERIFYING'].includes(task.status)) {
                     activeCount++;
                 }
@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${API_URL}/approvals`);
             const data = await res.json();
             
-            const count = data.approvals.length;
+            const count = data.length;
             badge.textContent = count;
             badge.style.display = count > 0 ? 'inline-block' : 'none';
             pendingStat.textContent = count;
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             approvalsContainer.innerHTML = '';
-            data.approvals.forEach(app => {
+            data.forEach(app => {
                 const div = document.createElement('div');
                 div.className = 'approval-item';
                 div.innerHTML = `
@@ -190,7 +190,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleApproval(id, approved) {
         try {
-            await fetch(`${API_URL}/approvals/${id}/${approved ? 'approve' : 'reject'}`, { method: 'POST' });
+            const res = await fetch(`${API_URL}/approvals/${id}/respond`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ approved })
+            });
+            if (!res.ok) throw new Error(`Approval request failed: ${res.status}`);
             fetchApprovals();
             fetchTasks();
             if (approved) {

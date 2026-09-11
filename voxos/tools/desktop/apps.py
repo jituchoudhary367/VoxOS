@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -41,7 +40,7 @@ class ListAppsTool(BaseTool):
     def input_schema(self) -> type[BaseModel]:
         return ListAppsArgs
 
-    async def _execute(self, arguments: dict[str, Any]) -> ToolResult:
+    async def _execute(self, arguments: ListAppsArgs) -> ToolResult:
         try:
             import pygetwindow as gw
         except ImportError:
@@ -80,8 +79,8 @@ class OpenAppTool(BaseTool):
     def input_schema(self) -> type[BaseModel]:
         return OpenAppArgs
 
-    async def _execute(self, arguments: dict[str, Any]) -> ToolResult:
-        target = arguments["app_path_or_name"]
+    async def _execute(self, arguments: OpenAppArgs) -> ToolResult:
+        target = arguments.app_path_or_name
 
         try:
             if platform.system() == "Windows":
@@ -125,8 +124,8 @@ class CloseAppTool(BaseTool):
     def input_schema(self) -> type[BaseModel]:
         return CloseAppArgs
 
-    async def _execute(self, arguments: dict[str, Any]) -> ToolResult:
-        title = arguments["window_title"]
+    async def _execute(self, arguments: CloseAppArgs) -> ToolResult:
+        title = arguments.window_title
 
         try:
             import pygetwindow as gw

@@ -10,7 +10,6 @@ import asyncio
 import os
 import sys
 import tempfile
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -48,9 +47,9 @@ class PythonREPLTool(BaseTool):
     def input_schema(self) -> type[BaseModel]:
         return PythonREPLArgs
 
-    async def _execute(self, arguments: dict[str, Any]) -> ToolResult:
-        code: str = arguments["code"]
-        timeout: int = arguments.get("timeout", 10)
+    async def _execute(self, arguments: PythonREPLArgs) -> ToolResult:
+        code = arguments.code
+        timeout = arguments.timeout
 
         # Write code to a temporary file
         fd, filepath = tempfile.mkstemp(suffix=".py", prefix="jarvis_repl_")

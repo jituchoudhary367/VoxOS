@@ -8,9 +8,10 @@ before the action proceeds.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from voxos.core.risk_engine.approval import get_approval_gateway
 from voxos.core.risk_engine.engine import get_risk_engine
 from voxos.observability.logger import get_logger
 
@@ -53,6 +54,11 @@ async def respond_to_approval(approval_id: str, body: ApprovalResponse):
     )
     if not approval:
         raise HTTPException(status_code=404, detail="Approval request not found")
+
+    # Wake ToolRunner waiters immediately. ExecutorAgent also observes the
+    # RiskEngine status, so resolving the gateway keeps both execution paths
+    # consistent.
+    get_approval_gateway().resolve(approval_id, body.approved)
 
     log.info(
         "approval_responded",

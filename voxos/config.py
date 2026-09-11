@@ -7,13 +7,21 @@ Secrets are NEVER hard-coded here. Use .env.example as a template.
 
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _env_file_paths() -> tuple[str, ...]:
+    """Return dotenv files supported by both the root and nested settings."""
+    env_files = [".env"]
+    if Path("env").is_file():
+        env_files.append("env")
+    return tuple(env_files)
 
 
 class DatabaseSettings(BaseSettings):
@@ -34,9 +42,19 @@ class DatabaseSettings(BaseSettings):
     def url(self) -> str:
         if self.url_override:
             # SQLAlchemy asyncpg needs postgresql+asyncpg scheme
-            if self.url_override.startswith("postgresql://"):
-                return self.url_override.replace("postgresql://", "postgresql+asyncpg://", 1)
-            return self.url_override
+            url = self.url_override
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql://", 1)
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+            parsed = urlsplit(url)
+            query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            sslmode = query.pop("sslmode", None)
+            query.pop("channel_binding", None)
+            if sslmode and "ssl" not in query:
+                query["ssl"] = sslmode
+            return urlunsplit(parsed._replace(query=urlencode(query)))
         return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
 
     @property
@@ -56,9 +74,13 @@ class RedisSettings(BaseSettings):
     port: int = 6379
     db: int = 0
     password: str | None = None
+    url_override: str | None = Field(default=None, alias="REDIS_URL")
+    ca_certs: str | None = Field(default=None, alias="REDIS_CA_CERTS")
 
     @property
     def url(self) -> str:
+        if self.url_override:
+            return self.url_override
         auth = f":{self.password}@" if self.password else ""
         return f"redis://{auth}{self.host}:{self.port}/{self.db}"
 
@@ -104,6 +126,8 @@ class TTSSettings(BaseSettings):
 
     tts_provider: str = Field(default="edge", alias="TTS_PROVIDER")
     edge_tts_voice: str = Field(default="en-US-AriaNeural", alias="EDGE_TTS_VOICE")
+    edge_tts_rate: int = Field(default=0, alias="EDGE_TTS_RATE")
+    edge_tts_volume: int = Field(default=0, alias="EDGE_TTS_VOLUME")
 
 
 class VoiceSettings(BaseSettings):
@@ -196,43 +220,43 @@ class Settings(BaseSettings):
     # Sub-settings (lazily instantiated)
     @property
     def db(self) -> DatabaseSettings:
-        return DatabaseSettings()
+        return DatabaseSettings(_env_file=_env_file_paths())
 
     @property
     def redis(self) -> RedisSettings:
-        return RedisSettings()
+        return RedisSettings(_env_file=_env_file_paths())
 
     @property
     def llm(self) -> LLMSettings:
-        return LLMSettings()
+        return LLMSettings(_env_file=_env_file_paths())
 
     @property
     def stt(self) -> STTSettings:
-        return STTSettings()
+        return STTSettings(_env_file=_env_file_paths())
 
     @property
     def tts(self) -> TTSSettings:
-        return TTSSettings()
+        return TTSSettings(_env_file=_env_file_paths())
 
     @property
     def voice(self) -> VoiceSettings:
-        return VoiceSettings()
+        return VoiceSettings(_env_file=_env_file_paths())
 
     @property
     def security(self) -> SecuritySettings:
-        return SecuritySettings()
+        return SecuritySettings(_env_file=_env_file_paths())
 
     @property
     def agent(self) -> AgentSettings:
-        return AgentSettings()
+        return AgentSettings(_env_file=_env_file_paths())
 
     @property
     def workspace(self) -> WorkspaceSettings:
-        return WorkspaceSettings()
+        return WorkspaceSettings(_env_file=_env_file_paths())
 
     @property
     def observability(self) -> ObservabilitySettings:
-        return ObservabilitySettings()
+        return ObservabilitySettings(_env_file=_env_file_paths())
 
     @property
     def is_production(self) -> bool:
@@ -246,4 +270,4 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return cached Settings instance (loaded once at startup)."""
-    return Settings()
+    return Settings(_env_file=_env_file_paths())

@@ -92,6 +92,7 @@ CRITICAL_PATTERNS = [
 ]
 
 HIGH_RISK_PATTERNS = [
+    r"\bsudo\b",
     # File deletion (single or targeted)
     r"\brm\b",
     r"\bdel\b",                                # Windows
@@ -125,6 +126,7 @@ HIGH_RISK_PATTERNS = [
 ]
 
 MEDIUM_RISK_PATTERNS = [
+    r"\b(?:curl|wget)\b",
     r"\bpip\s+(install|uninstall)\b",
     r"\bnpm\s+(install|uninstall|update)\b",
     r"\bdocker\s+build\b",
@@ -206,7 +208,7 @@ class CommandRiskClassifier:
         Returns:
             ClassificationResult with risk level and reasons
         """
-        command = command.strip()
+        command = self._normalize_command(command)
         reasons: list[str] = []
         matched_patterns: list[str] = []
 
@@ -242,7 +244,7 @@ class CommandRiskClassifier:
                 return ClassificationResult(
                     risk_level=RiskLevel.HIGH,
                     reasons=reasons + (
-                        [f"Accesses protected path"] if protected_hit else []
+                        ["Accesses protected path"] if protected_hit else []
                     ),
                     matched_patterns=matched_patterns,
                     requires_approval=True,
@@ -286,6 +288,19 @@ class CommandRiskClassifier:
             requires_approval=False,
         )
 
+    def assess_command(self, command: str) -> RiskLevel:
+        """Return the simplified risk level used by older callers."""
+        result = self.classify_command(command)
+        if result.risk_level == RiskLevel.CRITICAL:
+            return RiskLevel.HIGH
+        if result.risk_level == RiskLevel.HIGH and re.search(
+            r"\b(?:apt(?:-get)?|pip|npm|yum|choco)\s+(?:install|remove|uninstall|purge)",
+            self._normalize_command(command),
+            re.IGNORECASE,
+        ):
+            return RiskLevel.MEDIUM
+        return result.risk_level
+
     def classify_tool_operation(
         self,
         tool_name: str,
@@ -298,7 +313,7 @@ class CommandRiskClassifier:
         or uses the tool's declared risk level.
         """
         # Terminal tool — analyze the actual command
-        if tool_name == "terminal.execute":
+        if tool_name in {"terminal.execute", "os.shell_command"}:
             command = arguments.get("command", "")
             return self.classify_command(command)
 
@@ -340,6 +355,11 @@ class CommandRiskClassifier:
             if match:
                 return match.group(0)
         return None
+
+    @staticmethod
+    def _normalize_command(command: str) -> str:
+        """Remove simple shell escaping before pattern classification."""
+        return re.sub(r"\\(?=[A-Za-z])", "", command.strip())
 
     @staticmethod
     def _extract_base_command(command: str) -> str | None:

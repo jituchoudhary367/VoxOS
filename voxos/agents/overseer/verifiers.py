@@ -66,8 +66,7 @@ class FilesystemVerificationStrategy(VerificationStrategy):
     """Verify filesystem operations by checking the actual filesystem."""
 
     FILESYSTEM_TOOLS = {
-        "filesystem.create", "filesystem.write",
-        "filesystem.copy", "filesystem.move", "filesystem.rename",
+        "os.write_file",
     }
 
     def can_verify(self, tool_name: str) -> bool:
@@ -90,6 +89,7 @@ class FilesystemVerificationStrategy(VerificationStrategy):
             arguments.get("destination")
             or arguments.get("path")
             or arguments.get("new_path")
+            or arguments.get("file_path")
         )
 
         if target_path:
@@ -105,7 +105,7 @@ class CommandVerificationStrategy(VerificationStrategy):
     """Verify terminal commands by checking exit code and output."""
 
     def can_verify(self, tool_name: str) -> bool:
-        return tool_name == "terminal.execute"
+        return tool_name in {"terminal.execute", "os.shell_command"}
 
     async def verify(
         self,
@@ -129,7 +129,7 @@ class ApplicationVerificationStrategy(VerificationStrategy):
     """Verify application operations by checking the app list."""
 
     def can_verify(self, tool_name: str) -> bool:
-        return tool_name in {"application.open", "application.close"}
+        return tool_name in {"application.open", "application.close", "desktop.open_app", "desktop.close_app"}
 
     async def verify(
         self,
