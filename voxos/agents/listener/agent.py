@@ -195,31 +195,170 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
     def _fast_classify(text: str) -> ListenerOutput | None:
         """
         Deterministic fast-path for common patterns.
-        Avoids an LLM call for simple, obvious requests.
+        Avoids an LLM call for simple, obvious requests (Class A intents).
         """
+        import re
+        from pathlib import Path
+
         text_lower = text.lower().strip()
+        text_clean = re.sub(r'[^\w\s]', '', text_lower)  # strip punctuation
 
-        GREETINGS = {"hi", "hello", "hey", "hey voxos", "hi voxos", "hello voxos"}
-        if text_lower in GREETINGS:
-            return ListenerOutput(
-                intent="general_conversation",
-                language="en",
-                entities={"type": "greeting"},
-                requires_execution=False,
-                confidence=1.0,
-            )
+        # ── Greetings ─────────────────────────────────────────────────────────
+        GREETINGS = {"hi", "hello", "hey", "hey voxos", "hi voxos", "hello voxos",
+                     "namaste", "namaskar", "hey jarvis"}
+        if text_clean in GREETINGS:
+            return ListenerOutput(intent="general_conversation", language="en",
+                                  entities={"type": "greeting"},
+                                  requires_execution=False, confidence=1.0)
 
-        TIME_PHRASES = {
-            "what time is it", "what's the time", "current time", "time", "time?",
-            "what time", "samay kya hai", "time bolo",
-        }
-        if text_lower in TIME_PHRASES or text_lower.replace("?", "") in TIME_PHRASES:
-            return ListenerOutput(
-                intent="get_current_time",
-                language="en" if not any(w in text_lower for w in ["kya", "bolo", "hai"]) else "hi",
-                entities={},
-                requires_execution=True,
-                confidence=1.0,
-            )
+        # ── Time / Date ───────────────────────────────────────────────────────
+        TIME_PATTERNS = [
+            r"what(?:'s| is) (?:the )?(?:current )?time",
+            r"^(?:current )?time$", r"samay kya hai", r"time bolo", r"kitne baje",
+        ]
+        if any(re.search(p, text_clean) for p in TIME_PATTERNS):
+            lang = "hi" if any(w in text_clean for w in ["kya", "bolo", "hai", "baje"]) else "en"
+            return ListenerOutput(intent="get_current_time", language=lang,
+                                  entities={}, requires_execution=True, confidence=1.0)
+
+        DATE_PATTERNS = [r"what(?:'s| is) (?:the )?(?:today's )?date", r"^date$", r"today(?:'s)? date"]
+        if any(re.search(p, text_clean) for p in DATE_PATTERNS):
+            return ListenerOutput(intent="get_current_time", language="en",
+                                  entities={}, requires_execution=True, confidence=1.0)
+
+        # ── System Resources ──────────────────────────────────────────────────
+        SYS_RES_PATTERNS = [
+            r"(?:how much|check|show|what(?:'s| is)(?: my)?)\s+(?:ram|memory|cpu|processor|disk|storage|battery)",
+            r"(?:cpu|ram|memory|disk|battery|network) usage",
+            r"system (?:resources|stats|status|metrics)",
+            r"ram (?:kitna|check|batao)", r"cpu (?:kitna|check|batao)",
+        ]
+        if any(re.search(p, text_clean) for p in SYS_RES_PATTERNS):
+            return ListenerOutput(intent="get_resources", language="en",
+                                  entities={}, requires_execution=True, confidence=1.0)
+
+        # ── System Info ───────────────────────────────────────────────────────
+        SYS_INFO_PATTERNS = [
+            r"(?:what(?:'s| is)(?: my)? )?(?:os|operating system|hostname|computer name|uptime|system info)",
+            r"about (?:this )?(?:computer|system|pc|laptop)",
+        ]
+        if any(re.search(p, text_clean) for p in SYS_INFO_PATTERNS):
+            return ListenerOutput(intent="get_system_info", language="en",
+                                  entities={}, requires_execution=True, confidence=1.0)
+
+        # ── Screenshot ────────────────────────────────────────────────────────
+        SCREENSHOT_PATTERNS = [
+            r"^screenshot$", r"take (?:a )?screenshot", r"capture (?:the )?screen",
+            r"screenshot (?:le|lo|karo)",
+        ]
+        if any(re.search(p, text_clean) for p in SCREENSHOT_PATTERNS):
+            return ListenerOutput(intent="take_screenshot", language="en",
+                                  entities={}, requires_execution=True, confidence=1.0)
+
+        # ── Open Application ──────────────────────────────────────────────────
+        OPEN_APP_REGEX = re.compile(
+            r"^(?:please\s+)?(?:can you\s+)?(?:open|launch|start|run|kholo|chalu karo|shuru karo|start karo)\s+"
+            r"(?:the\s+)?(.+?)(?:\s+(?:app|application|program|software|window))?(?:\s+(?:for me|please))?$"
+        )
+        m = OPEN_APP_REGEX.match(text_clean)
+        if m:
+            app_name = m.group(1).strip()
+            STOPWORDS = {"the", "a", "an", "my", "it", "this", "that"}
+            if app_name and app_name not in STOPWORDS and len(app_name) > 1:
+                return ListenerOutput(intent="open_application", language="en",
+                                      entities={"name": app_name},
+                                      requires_execution=True, confidence=0.95)
+
+        # ── Close Application ─────────────────────────────────────────────────
+        CLOSE_APP_REGEX = re.compile(
+            r"^(?:please\s+)?(?:can you\s+)?(?:close|quit|exit|kill|terminate|band karo)\s+"
+            r"(?:the\s+)?(.+?)(?:\s+(?:app|application|program|window))?(?:\s+(?:for me|please))?$"
+        )
+        m = CLOSE_APP_REGEX.match(text_clean)
+        if m:
+            app_name = m.group(1).strip()
+            if app_name and len(app_name) > 1:
+                return ListenerOutput(intent="close_application", language="en",
+                                      entities={"window_title": app_name},
+                                      requires_execution=True, confidence=0.95)
+
+        # ── Window Management ─────────────────────────────────────────────────
+        m = re.match(r"^(?:focus|switch to|bring up|activate)\s+(.+?)(?:\s+window)?$", text_clean)
+        if m:
+            return ListenerOutput(intent="focus_window", language="en",
+                                  entities={"window_title": m.group(1).strip()},
+                                  requires_execution=True, confidence=0.90)
+
+        m = re.match(r"^minimize\s+(.+?)(?:\s+window)?$", text_clean)
+        if m:
+            return ListenerOutput(intent="minimize_window", language="en",
+                                  entities={"window_title": m.group(1).strip()},
+                                  requires_execution=True, confidence=0.95)
+
+        m = re.match(r"^maximize\s+(.+?)(?:\s+window)?$", text_clean)
+        if m:
+            return ListenerOutput(intent="maximize_window", language="en",
+                                  entities={"window_title": m.group(1).strip()},
+                                  requires_execution=True, confidence=0.95)
+
+        # ── List Running Apps / Windows ───────────────────────────────────────
+        if re.search(r"(?:what(?:'s| is)|list|show)(?: all)? (?:open |running )?(?:windows|apps|applications|programs)", text_clean):
+            return ListenerOutput(intent="list_apps", language="en",
+                                  entities={}, requires_execution=True, confidence=1.0)
+
+        # ── Filesystem — List Directory ───────────────────────────────────────
+        LIST_FILE_PATTERNS = [
+            (r"(?:list|show)(?: all)? files?(?: on| in| inside| from)? (?:my )?desktop", "Desktop"),
+            (r"(?:list|show)(?: all)? files?(?: on| in| inside| from)? (?:my )?documents", "Documents"),
+            (r"(?:list|show)(?: all)? files?(?: on| in| inside| from)? (?:my )?downloads", "Downloads"),
+        ]
+        for pattern, folder in LIST_FILE_PATTERNS:
+            if re.search(pattern, text_clean):
+                return ListenerOutput(intent="list_files", language="en",
+                                      entities={"dir_path": folder},
+                                      requires_execution=True, confidence=0.95)
+
+        m = re.search(r"(?:list|show)(?: all)? files?(?:\s+in|\s+inside|\s+from|\s+at)\s+(.+)", text_clean)
+        if m:
+            return ListenerOutput(intent="list_files", language="en",
+                                  entities={"dir_path": m.group(1).strip()},
+                                  requires_execution=True, confidence=0.85)
+
+        # ── Filesystem — Create Folder ────────────────────────────────────────
+        m = re.search(
+            r"(?:create|make|mkdir)\s+(?:a\s+)?(?:folder|directory|dir)\s+(?:called|named)?\s*['\"]?([^'\"]+?)['\"]?"
+            r"(?:\s+(?:on|in|at|inside)\s+(.+))?$",
+            text_clean
+        )
+        if m:
+            folder_name = m.group(1).strip()
+            location = m.group(2).strip() if m.group(2) else "Desktop"
+            path = f"{location}/{folder_name}" if "/" not in folder_name and "\\" not in folder_name else folder_name
+            return ListenerOutput(intent="create_folder", language="en",
+                                  entities={"dir_path": path},
+                                  requires_execution=True, confidence=0.90)
+
+        # ── Filesystem — Search Files ─────────────────────────────────────────
+        m = re.search(r"find (?:all )?(.+?) files?(?:\s+in|\s+inside|\s+on|\s+from)?\s*(.+)?$", text_clean)
+        if m:
+            pattern_hint = m.group(1).strip()
+            location = (m.group(2) or "home").strip()
+            ext = pattern_hint.lstrip("*.")
+            return ListenerOutput(intent="search_files", language="en",
+                                  entities={"search_path": location, "extension": ext},
+                                  requires_execution=True, confidence=0.85)
+
+        # ── Clipboard ─────────────────────────────────────────────────────────
+        if re.search(r"(?:what(?:'s| is) in(?: my)?|read|get|show) clipboard", text_clean):
+            return ListenerOutput(intent="read_clipboard", language="en",
+                                  entities={}, requires_execution=True, confidence=1.0)
+
+        # ── Cancel / Stop ─────────────────────────────────────────────────────
+        CANCEL_PHRASES = {"stop", "cancel", "never mind", "nevermind", "abort",
+                          "stop that", "cancel that", "ruk ja", "band kar"}
+        if text_clean in CANCEL_PHRASES or re.match(r"^(?:stop|cancel|abort)[\s!.]*$", text_clean):
+            return ListenerOutput(intent="cancel_task", language="en",
+                                  entities={}, requires_execution=False, confidence=1.0)
 
         return None
+

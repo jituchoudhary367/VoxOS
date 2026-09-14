@@ -2,18 +2,28 @@
 Desktop Application Control Tools.
 
 Provides tools for launching apps, listing windows, and closing them.
+Uses the AppDiscovery engine for robust application resolution.
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
 import platform
 import subprocess
 
+import psutil
 from pydantic import BaseModel, Field
 
-from voxos.tools.base import BaseTool, RiskLevel, ToolMetadata, ToolResult, VerificationType
+from voxos.observability.logger import get_logger
+from voxos.tools.base import BaseTool, RiskLevel, ToolMetadata, ToolResult, VerificationResult, VerificationType
 
+log = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# List Apps Tool
+# ---------------------------------------------------------------------------
 
 class ListAppsArgs(BaseModel):
     pass
@@ -28,7 +38,7 @@ class ListAppsTool(BaseTool):
     def metadata(self) -> ToolMetadata:
         return ToolMetadata(
             name="desktop.list_apps",
-            description="List titles of all currently visible open windows on the desktop.",
+            description="List titles of all currently visible open windows.",
             category="desktop",
             risk_level=RiskLevel.LOW,
             requires_confirmation=False,
@@ -47,32 +57,36 @@ class ListAppsTool(BaseTool):
             return ToolResult.fail("pygetwindow is not installed.")
 
         windows = gw.getAllTitles()
-        # Filter out empty or hidden windows
         visible_windows = [w for w in windows if w.strip()]
-        return ToolResult.ok({"windows": visible_windows})
+        return ToolResult.ok({"windows": visible_windows, "count": len(visible_windows)})
 
+
+# ---------------------------------------------------------------------------
+# Open App Tool
+# ---------------------------------------------------------------------------
 
 class OpenAppArgs(BaseModel):
-    app_path_or_name: str = Field(
-        description="Path to the executable or document, or name of a known application (e.g., 'notepad', 'calc')."
+    name: str = Field(
+        description="Name of the application to open (e.g. 'notepad', 'chrome', 'vs code')."
     )
 
 
 class OpenAppTool(BaseTool):
     """
-    Opens an application or file.
+    Opens an application by name using the Windows App Discovery engine.
+    Resolves common names, aliases, registry entries, and Start Menu shortcuts.
     """
 
     @property
     def metadata(self) -> ToolMetadata:
         return ToolMetadata(
             name="desktop.open_app",
-            description="Launch an application or open a file using its default program.",
+            description="Launch an application by name. Supports Chrome, Notepad, VS Code, Calculator, and any installed app.",
             category="desktop",
             risk_level=RiskLevel.MEDIUM,
             requires_confirmation=False,
-            verification_type=VerificationType.NONE,
-            timeout_seconds=30,
+            verification_type=VerificationType.AUTOMATIC,
+            timeout_seconds=15,
         )
 
     @property
@@ -80,8 +94,15 @@ class OpenAppTool(BaseTool):
         return OpenAppArgs
 
     async def _execute(self, arguments: OpenAppArgs) -> ToolResult:
-        target = arguments.app_path_or_name
+        from voxos.tools.desktop.discovery import get_app_discovery
+        discovery = get_app_discovery()
 
+        target, error = discovery.resolve_launch_target(arguments.name)
+        if error:
+            log.warning("app_not_found", name=arguments.name)
+            return ToolResult.fail(error, "APP_NOT_FOUND")
+
+        log.info("launching_app", name=arguments.name, target=target)
         try:
             if platform.system() == "Windows":
                 os.startfile(target)
@@ -89,35 +110,111 @@ class OpenAppTool(BaseTool):
                 subprocess.Popen(["open", target])
             else:
                 subprocess.Popen(["xdg-open", target])
-            
-            return ToolResult.ok({"status": f"Successfully launched {target}"})
-        except FileNotFoundError:
-            return ToolResult.fail(f"Could not find application or file: {target}", "NOT_FOUND")
-        except Exception as e:
-            return ToolResult.fail(f"Failed to open {target}: {str(e)}", "OPEN_FAILED")
 
+            # Brief wait for process to appear
+            await asyncio.sleep(0.5)
+
+            return ToolResult.ok({
+                "status": f"Launched {arguments.name}",
+                "target": target,
+                "app_name": arguments.name,
+            })
+
+        except FileNotFoundError:
+            return ToolResult.fail(
+                f"Could not find the executable for '{arguments.name}': {target}",
+                "APP_NOT_FOUND"
+            )
+        except Exception as e:
+            return ToolResult.fail(f"Failed to open '{arguments.name}': {str(e)}", "OPEN_FAILED")
+
+    async def verify(self, args: OpenAppArgs, result: ToolResult) -> VerificationResult:
+        if not result.success:
+            return VerificationResult.fail("Launch failed — nothing to verify")
+
+        from voxos.tools.desktop.discovery import _normalize, ALIASES
+        app_name = args.name.lower().strip()
+
+        # Build list of process names to look for
+        exe_names: list[str] = []
+        norm = _normalize(app_name)
+
+        from voxos.tools.desktop.discovery import get_app_discovery
+        entry = get_app_discovery().find(app_name)
+        if entry:
+            exe = entry.executable.lower()
+            if exe.endswith(".exe"):
+                exe_names.append(exe.split("\\")[-1].split("/")[-1])
+
+        # Fallback: treat the name itself as an exe
+        if not exe_names:
+            if not app_name.endswith(".exe"):
+                exe_names.append(app_name + ".exe")
+            else:
+                exe_names.append(app_name)
+
+        # Also check window title (fast path via pygetwindow)
+        window_found = False
+        try:
+            import pygetwindow as gw
+            all_titles = [t.lower() for t in gw.getAllTitles() if t.strip()]
+            window_found = any(app_name in t for t in all_titles)
+        except Exception:
+            pass
+
+        if window_found:
+            return VerificationResult.ok(checks=[{"check": "window_appeared", "passed": True}])
+
+        # Check process list
+        try:
+            running = [p.name().lower() for p in psutil.process_iter(["name"])]
+            for exe in exe_names:
+                if exe in running:
+                    return VerificationResult.ok(checks=[{"check": "process_appeared", "passed": True}])
+        except Exception:
+            pass
+
+        # ms-settings: and similar URI schemes can't be verified by process
+        target_str = result.data.get("target", "") if result.data else ""
+        if target_str.startswith("ms-") or target_str.endswith(":"):
+            return VerificationResult.ok(checks=[{"check": "uri_launched", "passed": True}])
+
+        return VerificationResult.fail(
+            f"Could not confirm '{args.name}' opened — no matching window or process found",
+            checks=[{"check": "window_or_process_appeared", "passed": False}],
+        )
+
+
+# ---------------------------------------------------------------------------
+# Close App Tool
+# ---------------------------------------------------------------------------
 
 class CloseAppArgs(BaseModel):
     window_title: str = Field(
-        description="The exact or partial title of the window to close."
+        description="Partial or full title of the window to close (e.g. 'Notepad', 'Chrome')."
+    )
+    force: bool = Field(
+        default=False,
+        description="If True, force-kill the process instead of graceful close. Requires higher approval."
     )
 
 
 class CloseAppTool(BaseTool):
     """
-    Closes a window by title.
+    Closes a window by title. Supports partial matching.
+    Use force=True only to kill an unresponsive process (higher risk).
     """
 
     @property
     def metadata(self) -> ToolMetadata:
         return ToolMetadata(
             name="desktop.close_app",
-            description="Close an application window by its title.",
+            description="Close an application window by its title. Use force=True to kill an unresponsive process.",
             category="desktop",
             risk_level=RiskLevel.MEDIUM,
             requires_confirmation=False,
-            verification_type=VerificationType.NONE,
-            timeout_seconds=30,
+            verification_type=VerificationType.AUTOMATIC,
+            timeout_seconds=15,
         )
 
     @property
@@ -125,27 +222,70 @@ class CloseAppTool(BaseTool):
         return CloseAppArgs
 
     async def _execute(self, arguments: CloseAppArgs) -> ToolResult:
-        title = arguments.window_title
+        title = arguments.window_title.strip()
 
         try:
             import pygetwindow as gw
         except ImportError:
             return ToolResult.fail("pygetwindow is not installed.")
 
-        windows = gw.getWindowsWithTitle(title)
-        if not windows:
+        # Find matching windows (case-insensitive partial match)
+        all_windows = gw.getAllWindows()
+        matched = [w for w in all_windows if title.lower() in w.title.lower() and w.title.strip()]
+
+        if not matched:
             return ToolResult.fail(f"No window found matching '{title}'", "NOT_FOUND")
 
         closed_count = 0
-        errors = []
-        for win in windows:
+        errors: list[str] = []
+
+        for win in matched:
             try:
-                win.close()
-                closed_count += 1
+                if arguments.force:
+                    # Force kill via psutil
+                    pid = win._hWnd  # handle; psutil needs pid
+                    killed = False
+                    for proc in psutil.process_iter(["pid", "name"]):
+                        try:
+                            if title.lower() in proc.name().lower():
+                                proc.terminate()
+                                killed = True
+                                closed_count += 1
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+                    if not killed:
+                        win.close()
+                        closed_count += 1
+                else:
+                    win.close()
+                    closed_count += 1
             except Exception as e:
                 errors.append(str(e))
 
-        if errors:
-            return ToolResult.fail(f"Failed to close some windows: {errors}", "CLOSE_FAILED")
+        if errors and closed_count == 0:
+            return ToolResult.fail(f"Failed to close windows: {errors}", "CLOSE_FAILED")
+
+        return ToolResult.ok({
+            "status": f"Closed {closed_count} window(s) matching '{title}'.",
+            "closed_count": closed_count,
+            "target_title": title,
+        })
+
+    async def verify(self, args: CloseAppArgs, result: ToolResult) -> VerificationResult:
+        if not result.success:
+            return VerificationResult.fail("Close failed — nothing to verify")
+            
+        import pygetwindow as gw
+        await asyncio.sleep(0.5)  # give it time to close
         
-        return ToolResult.ok({"status": f"Closed {closed_count} window(s) matching '{title}'."})
+        title = args.window_title.strip().lower()
+        all_windows = gw.getAllWindows()
+        still_open = [w for w in all_windows if title in w.title.lower() and w.title.strip()]
+        
+        if still_open:
+            return VerificationResult.fail(
+                f"Window '{title}' is still open",
+                checks=[{"check": "window_closed", "passed": False}]
+            )
+            
+        return VerificationResult.ok(checks=[{"check": "window_closed", "passed": True}])

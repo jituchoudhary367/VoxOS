@@ -134,51 +134,112 @@ def get_tool_registry() -> ToolRegistry:
 
 def _register_default_tools(registry: ToolRegistry) -> None:
     """Register all built-in tools at startup."""
+    # System
     from voxos.tools.system.tools import (
-        GetSystemInfoTool,
-        GetCurrentTimeTool,
-        GetSystemResourcesTool,
+        GetSystemInfoTool, GetCurrentTimeTool, GetSystemResourcesTool,
     )
+    # OS / Shell
     from voxos.tools.os.shell import ShellCommandTool
-    from voxos.tools.os.fs import ReadFileTool, WriteFileTool, ListDirTool
+    # Filesystem — core
+    from voxos.tools.os.fs import (
+        ReadFileTool, WriteFileTool, ListDirTool,
+        CreateFolderTool, CopyFileTool, MoveFileTool,
+        RenameFileTool, DeleteFileTool, SearchFilesTool,
+    )
+    # Web search
     from voxos.tools.web_search.tools import WebSearchTool, WebExtractTool
-    from voxos.tools.browser.tools import BrowserOpenTool, BrowserExtractTool
+    # Browser automation
+    from voxos.tools.browser.tools import (
+        BrowserOpenTool, BrowserExtractTool, BrowserSearchTool,
+        BrowserClickTool, BrowserTypeTool, BrowserNewTabTool,
+        BrowserBackTool, BrowserScrollTool, BrowserScreenshotTool,
+    )
+    from voxos.tools.browser.youtube import YouTubeSearchTool, YouTubePlayTool
+    # Desktop
     from voxos.tools.desktop.screen import DesktopScreenshotTool
-    from voxos.tools.documents.tools import DocumentReadTool
-    from voxos.tools.memory.tools import MemorySaveTool, MemorySearchTool
     from voxos.tools.desktop.apps import ListAppsTool, OpenAppTool, CloseAppTool
+    from voxos.tools.desktop.window import (
+        ListWindowsTool, FocusWindowTool, MinimizeWindowTool, MaximizeWindowTool,
+    )
+    from voxos.tools.desktop.input import (
+        KeyboardTypeTool, HotkeyTool, KeyPressTool, MouseClickTool, MouseScrollTool,
+    )
+    from voxos.tools.desktop.clipboard import ClipboardReadTool, ClipboardWriteTool
+    # Documents
+    from voxos.tools.documents.tools import DocumentReadTool
+    # Memory
+    from voxos.tools.memory.tools import MemorySaveTool, MemorySearchTool
+    # Code
     from voxos.tools.code.repl import PythonREPLTool
 
+    # ── System ────────────────────────────────────────────────────────────────
     registry.register(GetSystemInfoTool())
     registry.register(GetCurrentTimeTool())
     registry.register(GetSystemResourcesTool())
-    
+
+    # ── Shell ─────────────────────────────────────────────────────────────────
     registry.register(ShellCommandTool())
+
+    # ── Filesystem ────────────────────────────────────────────────────────────
     registry.register(ReadFileTool())
     registry.register(WriteFileTool())
     registry.register(ListDirTool())
-    
+    registry.register(CreateFolderTool())
+    registry.register(CopyFileTool())
+    registry.register(MoveFileTool())
+    registry.register(RenameFileTool())
+    registry.register(DeleteFileTool())
+    registry.register(SearchFilesTool())
+
+    # ── Web Search ────────────────────────────────────────────────────────────
     registry.register(WebSearchTool())
     registry.register(WebExtractTool())
-    
-    # Browser Tools
+
+    # ── Browser Automation ────────────────────────────────────────────────────
     registry.register(BrowserOpenTool())
     registry.register(BrowserExtractTool())
-    
-    # Document Tools
-    registry.register(DocumentReadTool())
-    
-    # Memory Tools
-    registry.register(MemorySaveTool())
-    registry.register(MemorySearchTool())
-    
-    # Desktop Tools
+    registry.register(BrowserSearchTool())
+    registry.register(BrowserClickTool())
+    registry.register(BrowserTypeTool())
+    registry.register(BrowserNewTabTool())
+    registry.register(BrowserBackTool())
+    registry.register(BrowserScrollTool())
+    registry.register(BrowserScreenshotTool())
+    registry.register(YouTubeSearchTool())
+    registry.register(YouTubePlayTool())
+
+    # ── Desktop — Screenshots & Apps ─────────────────────────────────────────
     registry.register(DesktopScreenshotTool())
     registry.register(ListAppsTool())
     registry.register(OpenAppTool())
     registry.register(CloseAppTool())
-    
-    # Code Tools
+
+    # ── Desktop — Windows ─────────────────────────────────────────────────────
+    registry.register(ListWindowsTool())
+    registry.register(FocusWindowTool())
+    registry.register(MinimizeWindowTool())
+    registry.register(MaximizeWindowTool())
+
+    # ── Desktop — Input ───────────────────────────────────────────────────────
+    registry.register(KeyboardTypeTool())
+    registry.register(HotkeyTool())
+    registry.register(KeyPressTool())
+    registry.register(MouseClickTool())
+    registry.register(MouseScrollTool())
+
+    # ── Desktop — Clipboard ───────────────────────────────────────────────────
+    registry.register(ClipboardReadTool())
+    registry.register(ClipboardWriteTool())
+
+    # ── Documents ─────────────────────────────────────────────────────────────
+    registry.register(DocumentReadTool())
+
+    # ── Memory ────────────────────────────────────────────────────────────────
+    registry.register(MemorySaveTool())
+    registry.register(MemorySearchTool())
+
+    # ── Code ──────────────────────────────────────────────────────────────────
     registry.register(PythonREPLTool())
 
     log.info("default_tools_registered", count=registry.tool_count())
+

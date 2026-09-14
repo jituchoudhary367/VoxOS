@@ -39,24 +39,26 @@ class TaskComplexity(str, Enum):
 class FallbackProvider(LLMProvider):
     """Wraps a primary and fallback provider."""
     
-    def __init__(self, primary: LLMProvider, fallback: LLMProvider) -> None:
+    def __init__(self, primary: LLMProvider, fallback: LLMProvider, model_mapper: callable = None) -> None:
         self.primary = primary
         self.fallback = fallback
+        self.model_mapper = model_mapper
 
     @property
     def name(self) -> str:
         return f"{self.primary.name}-with-fallback"
 
     def _get_fallback_config(self, config: LLMConfig) -> LLMConfig:
-        """Map Groq model names to OpenRouter meta-llama names if needed."""
+        import dataclasses
         fallback_config = config
-        model = config.model.lower()
-        if "llama-3" in model and not model.startswith("meta-llama/"):
-            if "70b" in model:
-                new_model = "meta-llama/llama-3.3-70b-instruct"
-            else:
-                new_model = "meta-llama/llama-3.1-8b-instruct"
-            fallback_config = LLMConfig(**{**config.model_dump(), "model": new_model})
+        
+        if self.model_mapper:
+            new_model = self.model_mapper(config.model)
+        else:
+            new_model = config.model
+            
+        if new_model != config.model:
+            fallback_config = LLMConfig(**{**dataclasses.asdict(config), "model": new_model})
         return fallback_config
 
     async def complete(self, messages: list[LLMMessage], config: LLMConfig) -> LLMResponse:
@@ -152,12 +154,17 @@ def get_llm_router() -> LLMRouter:
         provider_name=settings.provider,
     )
     
-    fallback = OpenAICompatibleProvider(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=settings.openrouter_api_key,
-        provider_name="openrouter",
+    ollama = OpenAICompatibleProvider(
+        base_url="http://localhost:11434/v1",
+        api_key="ollama",  # Any string works for local Ollama
+        provider_name="ollama",
     )
+
+    def ollama_mapper(model: str) -> str:
+        # User requested ollama llama3:8b as local fallback for everything
+        return "llama3:8b"
+        
+    provider = FallbackProvider(primary, ollama, ollama_mapper)
     
-    provider = FallbackProvider(primary, fallback)
-    log.info("llm_router_initialized", provider="groq-with-openrouter-fallback", fast=settings.fast_model, strong=settings.strong_model)
+    log.info("llm_router_initialized", provider="groq->ollama", fast=settings.fast_model, strong=settings.strong_model)
     return LLMRouter(provider=provider)

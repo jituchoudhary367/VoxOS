@@ -44,6 +44,27 @@ class ShellCommandTool(BaseTool):
         """Executes the shell command and captures output."""
         log.info("executing_shell_command", command=args.command, cwd=args.cwd)
 
+        # Phase 5: Dynamic Risk Classification
+        try:
+            from voxos.core.risk_engine.classifier import CommandRiskClassifier
+            classifier = CommandRiskClassifier()
+            risk_result = classifier.classify_command(args.command)
+            
+            if risk_result.is_blocked or risk_result.risk_level == RiskLevel.CRITICAL:
+                log.warning("shell_command_blocked", command=args.command, reason=risk_result.block_reason)
+                return ToolResult.fail(
+                    error=f"Command blocked by security policy: {risk_result.block_reason or 'Critical risk'}",
+                    error_code="SECURITY_BLOCKED",
+                    status="PERMISSION_DENIED"
+                )
+        except Exception as e:
+            log.error("risk_classification_failed", error=str(e))
+            # Fail safe if classification crashes
+            return ToolResult.fail(
+                error="Failed to classify command risk",
+                error_code="CLASSIFIER_ERROR"
+            )
+
         # Validate CWD if provided
         if args.cwd and not os.path.isdir(args.cwd):
             return ToolResult.fail(

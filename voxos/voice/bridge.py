@@ -6,7 +6,7 @@ import asyncio
 from typing import Optional, Callable
 
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
-from pipecat.frames.frames import Frame, TranscriptionFrame, TextFrame
+from pipecat.frames.frames import Frame, TranscriptionFrame, TextFrame, UserStartedSpeakingFrame, UserStoppedSpeakingFrame
 
 from voxos.core.task_manager.manager import get_task_manager
 from voxos.api.routes.chat import _get_agents, _build_response
@@ -27,6 +27,7 @@ class JarvisBridge(FrameProcessor):
         self.session_id = session_id
         self._task_queue: asyncio.Queue[str] = asyncio.Queue()
         self._processing_task: Optional[asyncio.Task] = None
+        self._utterance_buffer: list[str] = []
         
         self.on_transcript: Optional[Callable[[str], None]] = None
         self.on_status: Optional[Callable[[str, str], None]] = None
@@ -49,14 +50,33 @@ class JarvisBridge(FrameProcessor):
         # Process parent class stuff (just in case)
         await super().process_frame(frame, direction)
 
-        if isinstance(frame, TranscriptionFrame):
+        if isinstance(frame, UserStartedSpeakingFrame):
+            # Clear buffer on new utterance
+            self._utterance_buffer.clear()
+            
+        elif isinstance(frame, TranscriptionFrame):
             text = frame.text.strip()
-            # Only trigger for non-empty text, and maybe check if the user is addressing VoxOS
             if text:
-                log.info("voice_input_received", text=text)
+                # Append fragment to the current utterance buffer
+                self._utterance_buffer.append(text)
+                
+        elif isinstance(frame, UserStoppedSpeakingFrame):
+            # User finished turn, join fragments and submit
+            full_text = " ".join(self._utterance_buffer).strip()
+            if full_text:
+                log.info("voice_turn_finalized", text=full_text)
                 if self.on_transcript:
-                    self.on_transcript(f"User: {text}")
-                await self._task_queue.put(text)
+                    self.on_transcript(f"User: {full_text}")
+                
+                # Clear pending queue so we only process the latest utterance
+                while not self._task_queue.empty():
+                    try:
+                        self._task_queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                        
+                await self._task_queue.put(full_text)
+                self._utterance_buffer.clear()
 
         # Must always push frames downstream to keep pipeline flowing
         await self.push_frame(frame, direction)
@@ -72,9 +92,6 @@ class JarvisBridge(FrameProcessor):
                 
                 if self.on_status:
                     self.on_status("VoxOS: Thinking...", "#FFFF00")
-                
-                # Acknowledge immediately
-                await self.speak("Processing...")
                 
                 # Create Task
                 task = await task_manager.create_task(

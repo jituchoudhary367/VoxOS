@@ -58,7 +58,13 @@ class WebSearchTool(BaseTool):
             
         except Exception as e:
             log.exception("web_search_error", query=args.query, error=str(e))
-            return ToolResult.fail(error=str(e), error_code="SEARCH_ERROR")
+            error_str = str(e)
+            if "202 Ratelimit" in error_str or "RateLimit" in type(e).__name__:
+                return ToolResult.fail(
+                    error="Search provider rate limit exceeded. Please try again later.",
+                    error_code="RATE_LIMITED"
+                )
+            return ToolResult.fail(error=error_str, error_code="SEARCH_ERROR")
 
 
 class WebExtractArgs(BaseModel):

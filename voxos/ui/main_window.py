@@ -19,24 +19,25 @@ class VoxOSOverlay(QMainWindow):
         self.center_window()
         
     def init_ui(self):
-        self.setFixedSize(400, 150)
+        self.setFixedSize(420, 160)
         
         central_widget = QWidget(self)
         central_widget.setObjectName("CentralWidget")
         
-        # Style to create a dark glassmorphism look
+        # Professional frosted glass look
         central_widget.setStyleSheet("""
             QWidget#CentralWidget {
-                background-color: rgba(30, 30, 30, 220);
-                border-radius: 15px;
-                border: 1px solid rgba(255, 255, 255, 30);
+                background-color: rgba(15, 17, 21, 230);
+                border-radius: 16px;
+                border: 1px solid rgba(255, 255, 255, 40);
             }
         """)
         
         layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(15, 15, 15, 15)
         
         self.status_label = QLabel("VoxOS: Sleeping", self)
-        self.status_label.setStyleSheet("color: #00FFCC; font-weight: bold; font-size: 16px; font-family: 'Segoe UI';")
+        self.status_label.setStyleSheet("color: #94a3b8; font-weight: 700; font-size: 15px; font-family: 'Segoe UI', sans-serif; letter-spacing: 0.5px;")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         self.transcript_area = QTextEdit(self)
@@ -44,10 +45,11 @@ class VoxOSOverlay(QMainWindow):
         self.transcript_area.setStyleSheet("""
             QTextEdit {
                 background-color: transparent;
-                color: #FFFFFF;
+                color: #f8fafc;
                 border: none;
-                font-family: 'Segoe UI';
+                font-family: 'Segoe UI', sans-serif;
                 font-size: 14px;
+                line-height: 1.5;
             }
         """)
         
@@ -57,21 +59,27 @@ class VoxOSOverlay(QMainWindow):
         self.setCentralWidget(central_widget)
 
     def center_window(self):
-        # We can center the window relative to the primary screen.
         screen = self.screen()
         if screen:
             screen_geometry = screen.geometry()
             x = (screen_geometry.width() - self.width()) // 2
-            # Put it near the top
-            y = screen_geometry.height() // 6
+            y = screen_geometry.height() // 8
             self.move(x, y)
             
-    def update_status(self, text: str, color: str = "#00FFCC"):
+    def update_status(self, text: str, color: str = "#3b82f6"):
         self.status_label.setText(text)
-        self.status_label.setStyleSheet(f"color: {color}; font-weight: bold; font-size: 16px; font-family: 'Segoe UI';")
+        self.status_label.setStyleSheet(f"color: {color}; font-weight: 700; font-size: 15px; font-family: 'Segoe UI', sans-serif; letter-spacing: 0.5px;")
         
     def append_transcript(self, text: str):
-        self.transcript_area.append(text)
+        # Format user vs agent for overlay
+        if text.startswith("You:"):
+            formatted = f"<span style='color: #94a3b8;'>{text}</span>"
+        elif text.startswith("VoxOS:"):
+            formatted = f"<span style='color: #ffffff; font-weight: bold;'>{text}</span>"
+        else:
+            formatted = text
+            
+        self.transcript_area.append(formatted)
         self.transcript_area.verticalScrollBar().setValue(self.transcript_area.verticalScrollBar().maximum())
         
     def mousePressEvent(self, event):

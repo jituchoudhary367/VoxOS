@@ -157,6 +157,25 @@ def _format_result_data(intent: str, data: dict) -> str:
             f"Memory: {mem.get('used_gb', 0):.1f}GB / {mem.get('total_gb', 0):.1f}GB ({mem.get('percent', 0):.1f}%)\n"
             f"Disk: {disk.get('free_gb', 0):.1f}GB free of {disk.get('total_gb', 0):.1f}GB"
         )
-    # Generic: pretty-print the data
-    import json
-    return json.dumps(data, indent=2, default=str)
+    if intent == "search_web" or (isinstance(data, dict) and "results" in data):
+        results = data.get("results", [])
+        if results:
+            first = results[0]
+            if "Search Failed" in first.get("title", ""):
+                return f"My web search failed due to an error: {first.get('body', 'Rate limit exceeded')}."
+            return f"I found the following information: {first.get('snippet', first.get('body', ''))}"
+        return "I couldn't find any results for that search."
+
+    if "items" in data:
+        items = data.get("items", [])
+        return f"I found {len(items)} items."
+        
+    if "windows" in data:
+        windows = data.get("windows", [])
+        return f"I found {len(windows)} open windows."
+        
+    if "status" in data:
+        return str(data.get("status"))
+
+    # Generic fallback: DO NOT return JSON for TTS.
+    return "I have successfully completed the task."

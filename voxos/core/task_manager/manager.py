@@ -21,6 +21,7 @@ from typing import Any
 from voxos.core.events.bus import JarvisEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.task_manager.models import Task, TaskStatus
+from voxos.agents.overseer.agent import OverseerOutput
 from voxos.database.engine import get_session_factory
 from voxos.database.repositories.session_repo import SessionRepository
 from voxos.database.repositories.task_repo import TaskRepository
@@ -31,6 +32,18 @@ from voxos.observability.metrics import get_metrics
 
 log = get_logger(__name__)
 metrics = get_metrics()
+
+# Phase 8: Error Taxonomy & Bounded Recovery
+NON_RETRYABLE_ERRORS = frozenset({
+    "PERMISSION_DENIED",
+    "SECURITY_BLOCKED",
+    "VALIDATION_ERROR",
+    "USER_CANCELLED",
+    "NOT_FOUND",
+    "APP_NOT_FOUND",
+    "FILE_NOT_FOUND",
+    "DIR_NOT_FOUND",
+})
 
 
 class TaskManager:
@@ -92,18 +105,32 @@ class TaskManager:
                         "session_metadata": {},
                     })
 
+                import json
+                from datetime import datetime
+                
+                def _json_serial(obj):
+                    if isinstance(obj, datetime):
+                        return obj.isoformat()
+                    raise TypeError(f"Type {type(obj)} not serializable")
+                
+                def _to_jsonb(data):
+                    if data is None:
+                        return None
+                    if hasattr(data, "model_dump"):
+                        data = data.model_dump()
+                    return json.loads(json.dumps(data, default=_json_serial))
+
                 repo = TaskRepository(session)
                 db_task = await repo.get(task.id)
-                plan_data = task.plan.model_dump() if task.plan else None
 
                 task_dict = {
                     "session_id": session_id,
                     "user_request": task.user_request,
                     "status": task.status.value,
                     "risk_level": task.risk_level,
-                    "plan": plan_data,
-                    "result": task.result,
-                    "error_info": task.error_info,
+                    "plan": _to_jsonb(task.plan),
+                    "result": _to_jsonb(task.result),
+                    "error_info": _to_jsonb(task.error_info),
                     "retry_count": task.retry_count,
                     "approval_status": task.approval_status,
                 }
@@ -254,17 +281,26 @@ class TaskManager:
         from voxos.agents.executor.agent import ExecutorInput
         from voxos.agents.overseer.agent import OverseerInput
 
+        import time
+        from datetime import datetime, timezone
+        from voxos.core.router import get_execution_router, ExecutionClass
+        from voxos.core.task_manager.models import TaskPlan, TaskStep
+
         # Stage 1: Listener — understand the request
         await self.transition(task, TaskStatus.UNDERSTANDING)
+        
+        t0 = time.monotonic()
         listener_output = await listener.process(ListenerInput(
             text=task.user_request,
             session_id=task.session_id,
             language=task.language,
         ))
+        t1 = time.monotonic()
 
         task.intent = listener_output.intent
         task.language = listener_output.language
         task.entities = listener_output.entities
+        task.turn_finalized_at = datetime.now(timezone.utc)
         task.touch()
 
         log.info(
@@ -275,56 +311,114 @@ class TaskManager:
             entities=listener_output.entities,
         )
 
-        # Stage 2: Strategist — create a plan
-        await self.transition(task, TaskStatus.PLANNING)
-        strat_output = await strategist.process(StrategistInput(
-            intent=listener_output.intent,
-            entities=listener_output.entities,
-            user_request=task.user_request,
-            session_id=task.session_id,
-            task_id=task.id,
-            language=listener_output.language,
-        ))
+        # Stage 2: Routing
+        t2 = time.monotonic()
+        router = get_execution_router()
+        exec_class = router.route(listener_output.intent, listener_output.confidence, listener_output.entities)
+        task.execution_class = exec_class.value
+        t3 = time.monotonic()
+        task.routing_ms = (t3 - t2) * 1000
 
-        task.plan = strat_output.plan
-        task.risk_level = strat_output.plan.estimated_risk
-        task.touch()
+        if exec_class in (ExecutionClass.FAST_PATH, ExecutionClass.AUTOMATION):
+            log.info("deterministic_path_selected", task_id=task.id, intent=listener_output.intent, exec_class=exec_class.value)
+            
+            tool_name = router.fast_path_tool(listener_output.intent) or listener_output.intent
+            
+            task.plan = TaskPlan(
+                goal=task.user_request,
+                steps=[
+                    TaskStep(
+                        action=listener_output.intent,
+                        tool=tool_name,
+                        arguments=listener_output.entities
+                    )
+                ],
+                estimated_risk="LOW"
+            )
+            task.risk_level = "LOW"
+            task.llm_ms = (t1 - t0) * 1000  # Only listener LLM cost
+            task.touch()
+        else:
+            # Stage 2.5: Strategist — create a plan
+            await self.transition(task, TaskStatus.PLANNING)
+            strat_t0 = time.monotonic()
+            strat_output = await strategist.process(StrategistInput(
+                intent=listener_output.intent,
+                entities=listener_output.entities,
+                user_request=task.user_request,
+                session_id=task.session_id,
+                task_id=task.id,
+                language=listener_output.language,
+            ))
+            strat_t1 = time.monotonic()
 
-        log.info(
-            "plan_created",
-            task_id=task.id,
-            steps=len(task.plan.steps),
-            risk=task.risk_level,
-        )
+            task.plan = strat_output.plan
+            task.risk_level = strat_output.plan.estimated_risk
+            task.llm_ms = ((t1 - t0) + (strat_t1 - strat_t0)) * 1000
+            task.touch()
+
+            log.info(
+                "plan_created",
+                task_id=task.id,
+                steps=len(task.plan.steps),
+                risk=task.risk_level,
+            )
 
         # Stage 3: Execute with retry loop
+        task.tool_ms = 0.0
+        task.verification_ms = 0.0
+
         for attempt in range(task.max_retries + 1):
             if task.status == TaskStatus.CANCELLED:
                 return task
 
             await self.transition(task, TaskStatus.EXECUTING)
 
+            exec_t0 = time.monotonic()
             executor_output = await executor.process(ExecutorInput(
                 task=task,
                 session_id=task.session_id,
                 permissions=permissions,
             ))
+            exec_t1 = time.monotonic()
+            task.tool_ms += (exec_t1 - exec_t0) * 1000
+
+            # Fast-fail check for non-retryable errors
+            has_fatal_error = False
+            for step_res in executor_output.step_results:
+                if step_res.get("status") == "FAILED" and step_res.get("error_code") in NON_RETRYABLE_ERRORS:
+                    log.warning("fast_failing_on_fatal_error", task_id=task.id, error_code=step_res.get("error_code"))
+                    has_fatal_error = True
+                    break
+            
+            if has_fatal_error:
+                # We do not even run overseer or replanning
+                overseer_output = OverseerOutput(all_passed=False, failures=["Fatal execution error"])
+                break
 
             # Stage 4: Overseer verification
             await self.transition(task, TaskStatus.VERIFYING)
+            veri_t0 = time.monotonic()
             overseer_output = await overseer.process(OverseerInput(
                 task=task,
                 executor_output=executor_output,
                 session_id=task.session_id,
             ))
+            veri_t1 = time.monotonic()
+            task.verification_ms += (veri_t1 - veri_t0) * 1000
 
             if overseer_output.all_passed:
                 task.result = executor_output.results
+                task.total_ms = (time.monotonic() - t0) * 1000
                 await self.transition(task, TaskStatus.COMPLETED)
                 log.info("task_succeeded", task_id=task.id, attempts=attempt + 1)
                 return task
 
             # Verification failed
+            if exec_class in (ExecutionClass.FAST_PATH, ExecutionClass.AUTOMATION):
+                # Deterministic tasks shouldn't go back to Strategist for replanning
+                break
+                
             if task.can_retry():
                 task.increment_retry()
                 await self.transition(task, TaskStatus.REPLANNING)
@@ -352,11 +446,12 @@ class TaskManager:
 
         # Exhausted retries
         task.error_info = {
-            "reason": "Max retries exceeded",
+            "reason": "Max retries exceeded" if attempt >= task.max_retries else "Verification failed",
             "failures": getattr(overseer_output, "failures", []),
         }
+        task.total_ms = (time.monotonic() - t0) * 1000
         await self.transition(task, TaskStatus.FAILED)
-        log.error("task_failed_max_retries", task_id=task.id, retries=task.retry_count)
+        log.error("task_failed", task_id=task.id, retries=task.retry_count)
         return task
 
     def stats(self) -> dict[str, int]:

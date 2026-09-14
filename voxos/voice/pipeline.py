@@ -15,14 +15,20 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.transports.local.audio import LocalAudioTransport, LocalAudioTransportParams
-from pipecat.services.openai import OpenAITTSService
+
+from dotenv import load_dotenv
+load_dotenv()
 
 try:
-    from pipecat.services.openai import OpenAISTTService
+    from pipecat.services.deepgram.stt import DeepgramSTTService
+    from pipecat.services.deepgram.tts import DeepgramTTSService
 except ImportError:
-    OpenAISTTService = None
+    from pipecat.services.deepgram import DeepgramSTTService, DeepgramTTSService
 
-from pipecat.vad.silero import SileroVADAnalyzer
+try:
+    from pipecat.vad.silero import SileroVADAnalyzer
+except ImportError:
+    from pipecat.audio.vad.silero import SileroVADAnalyzer
 
 from voxos.voice.bridge import JarvisBridge
 from voxos.observability.logger import get_logger
@@ -51,20 +57,26 @@ class VoicePipeline:
         if not os.getenv("OPENAI_API_KEY") and not os.getenv("GROQ_API_KEY"):
             log.warning("OPENAI_API_KEY / GROQ_API_KEY not set. Voice pipeline may fail.")
         
+        from voxos.config import get_settings
+        settings = get_settings()
+        
+        deepgram_key = settings.stt.deepgram_api_key
+        if not deepgram_key:
+            log.error("DEEPGRAM_API_KEY is missing from configuration!")
+            raise RuntimeError("Missing Deepgram API Key")
+        
         # 1. Transport (Local Mic & Speaker)
         transport = LocalAudioTransport(LocalAudioTransportParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
-            vad_enabled=True,
             vad_analyzer=SileroVADAnalyzer(),
         ))
 
         # 2. STT Service
-        if OpenAISTTService is not None:
-            stt = OpenAISTTService()
-        else:
-            log.error("OpenAISTTService not available in Pipecat!")
-            raise RuntimeError("Missing STT Service")
+        stt = DeepgramSTTService(
+            api_key=deepgram_key,
+            settings=DeepgramSTTService.Settings(model="nova-2", language=None)
+        )
 
         # 3. VoxOS Bridge (our custom FrameProcessor)
         self.bridge = JarvisBridge(session_id=self.session_id)
@@ -72,7 +84,10 @@ class VoicePipeline:
         self.bridge.on_status = self.on_status
 
         # 4. TTS Service
-        tts = OpenAITTSService(voice="nova")
+        tts = DeepgramTTSService(
+            api_key=deepgram_key, 
+            settings=DeepgramTTSService.Settings(voice="aura-asteria-en")
+        )
 
         # 5. Build Pipeline
         pipeline = Pipeline([

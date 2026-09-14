@@ -119,6 +119,16 @@ class Task(BaseModel):
     language: str = "en"
     entities: dict[str, Any] = Field(default_factory=dict)
 
+    # Phase 9: Latency & Execution Instrumentation
+    execution_class: str | None = None
+    turn_finalized_at: datetime | None = None
+    routing_ms: float | None = None
+    llm_ms: float | None = None
+    tool_ms: float | None = None
+    verification_ms: float | None = None
+    tts_ms: float | None = None
+    total_ms: float | None = None
+
     def touch(self) -> None:
         self.updated_at = datetime.now(timezone.utc)
 
