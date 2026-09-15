@@ -68,7 +68,8 @@ ALIASES: dict[str, str] = {
     "microsoft excel": "excel.exe",
     "powerpoint": "powerpnt.exe",
     "microsoft powerpoint": "powerpnt.exe",
-    "outlook": "outlook.exe",
+    "outlook": "outlookmail:",
+    "microsoft outlook": "outlookmail:",
     "onenote": "onenote.exe",
     "teams": "teams.exe",
     "microsoft teams": "teams.exe",
@@ -86,6 +87,8 @@ ALIASES: dict[str, str] = {
     "settings": "ms-settings:",
     "windows settings": "ms-settings:",
     "snipping tool": "snippingtool.exe",
+    "screenrecorder": "snippingtool.exe",
+    "screen recorder": "snippingtool.exe",
     "clock": "ms-clock:",
     "calendar": "outlookcal:",
     "mail": "outlookmail:",
@@ -253,9 +256,9 @@ class AppDiscovery:
 
 
 def _normalize(text: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace."""
+    """Lowercase, strip most punctuation (except + and -), collapse whitespace."""
     text = text.lower().strip()
-    text = re.sub(r"[^\w\s]", "", text)
+    text = re.sub(r"[^\w\s\+\-]", "", text)
     text = re.sub(r"\s+", " ", text)
     return text
 

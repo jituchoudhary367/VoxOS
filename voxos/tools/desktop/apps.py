@@ -65,10 +65,32 @@ class ListAppsTool(BaseTool):
 # Open App Tool
 # ---------------------------------------------------------------------------
 
+from pydantic import model_validator
+
 class OpenAppArgs(BaseModel):
-    name: str = Field(
+    name: str | None = Field(
+        default=None,
         description="Name of the application to open (e.g. 'notepad', 'chrome', 'vs code')."
     )
+    application: str | None = Field(
+        default=None,
+        description="Alias for name, used by Fast Path listener."
+    )
+    url: str | None = Field(
+        default=None,
+        description="Optional URL or file path to open with the application."
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_name(cls, data: dict) -> dict:
+        if "app_name" in data and not data.get("name"):
+            data["name"] = data["app_name"]
+        if "application" in data and not data.get("name"):
+            data["name"] = data["application"]
+        if not data.get("name"):
+            raise ValueError("Application name is required.")
+        return data
 
 
 class OpenAppTool(BaseTool):
@@ -102,14 +124,27 @@ class OpenAppTool(BaseTool):
             log.warning("app_not_found", name=arguments.name)
             return ToolResult.fail(error, "APP_NOT_FOUND")
 
-        log.info("launching_app", name=arguments.name, target=target)
+        log.info("launching_app", name=arguments.name, target=target, url=arguments.url)
         try:
             if platform.system() == "Windows":
-                os.startfile(target)
+                url_to_open = arguments.url
+                if not url_to_open and any(browser in arguments.name.lower() for browser in ["chrome", "edge"]):
+                    url_to_open = "about:blank"
+
+                if url_to_open:
+                    subprocess.Popen(["cmd", "/c", "start", "", target, url_to_open], shell=True)
+                else:
+                    os.startfile(target)
             elif platform.system() == "Darwin":
-                subprocess.Popen(["open", target])
+                cmd = ["open", "-a", target]
+                if arguments.url:
+                    cmd.append(arguments.url)
+                subprocess.Popen(cmd)
             else:
-                subprocess.Popen(["xdg-open", target])
+                cmd = [target]
+                if arguments.url:
+                    cmd.append(arguments.url)
+                subprocess.Popen(cmd)
 
             # Brief wait for process to appear
             await asyncio.sleep(0.5)

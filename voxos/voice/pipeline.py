@@ -83,18 +83,11 @@ class VoicePipeline:
         self.bridge.on_transcript = self.on_transcript
         self.bridge.on_status = self.on_status
 
-        # 4. TTS Service
-        tts = DeepgramTTSService(
-            api_key=deepgram_key, 
-            settings=DeepgramTTSService.Settings(voice="aura-asteria-en")
-        )
-
-        # 5. Build Pipeline
+        # 5. Build Pipeline (TTS is handled directly in JarvisBridge now)
         pipeline = Pipeline([
             transport.input(),
             stt,
             self.bridge,
-            tts,
             transport.output(),
         ])
 

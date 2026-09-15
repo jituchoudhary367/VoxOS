@@ -9,7 +9,6 @@ from PySide6.QtGui import QIcon, QAction
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
-from voxos.ui.main_window import VoxOSOverlay
 from voxos.ui.hotkey import HotkeyListener
 from voxos.observability.logger import get_logger
 
@@ -43,7 +42,6 @@ class JarvisApp(QObject):
         self.app = QApplication.instance() or QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)  # Keep running in tray
         
-        self.window = VoxOSOverlay()
         self.setup_tray()
         
         # Connect signals
@@ -63,12 +61,10 @@ class JarvisApp(QObject):
         self.setup_wake_word()
 
     def _handle_status(self, text: str, color: str):
-        self.window.update_status(text, color)
         if hasattr(self, 'dashboard_window') and self.dashboard_window:
             self.dashboard_window.update_status(text, color)
             
     def _handle_transcript(self, text: str):
-        self.window.append_transcript(text)
         if hasattr(self, 'dashboard_window') and self.dashboard_window:
             self.dashboard_window.append_transcript(text)
 
@@ -117,10 +113,6 @@ class JarvisApp(QObject):
         
         menu = QMenu()
         
-        show_action = QAction("Open Quick Overlay", self)
-        show_action.triggered.connect(self.show_window)
-        menu.addAction(show_action)
-        
         dash_action = QAction("Open Interaction Dashboard", self)
         dash_action.triggered.connect(self.show_dashboard)
         menu.addAction(dash_action)
@@ -128,10 +120,6 @@ class JarvisApp(QObject):
         settings_action = QAction("Settings", self)
         settings_action.triggered.connect(self.show_settings)
         menu.addAction(settings_action)
-        
-        hide_action = QAction("Hide Quick Overlay", self)
-        hide_action.triggered.connect(self.hide_window)
-        menu.addAction(hide_action)
         
         menu.addSeparator()
         
@@ -148,24 +136,12 @@ class JarvisApp(QObject):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.show_dashboard()
 
-    def show_window(self):
-        self.window.show()
-        self.window.raise_()
-        self.window.activateWindow()
-
-    def hide_window(self):
-        self.window.hide()
-
-    def toggle_window(self):
-        if self.window.isVisible():
-            self.hide_window()
-        else:
-            self.show_window()
-
     def show_dashboard(self):
         if not self.dashboard_window:
             from voxos.ui.dashboard import InteractionDashboard
             self.dashboard_window = InteractionDashboard()
+            self.dashboard_window.chat_message_sent.connect(self._handle_chat_message)
+            self.dashboard_window.voice_toggle_requested.connect(self.toggle_voice_mode)
         self.dashboard_window.show()
         self.dashboard_window.raise_()
         self.dashboard_window.activateWindow()
@@ -180,7 +156,10 @@ class JarvisApp(QObject):
 
     def toggle_voice_mode(self):
         """Called when Ctrl+Space is pressed, or when Wake Word triggers."""
-        self.show_window()
+        self.show_dashboard()
+        if hasattr(self, 'dashboard_window') and self.dashboard_window:
+            self.dashboard_window.switch_mode(1)
+
         
         if self.pipeline_running:
             self.status_changed.emit("VoxOS: Wake Word Only", "#00FFCC")
@@ -248,6 +227,54 @@ class JarvisApp(QObject):
             if hasattr(self, 'wake_word_engine'):
                 self.wake_word_engine.resume()
 
+    def _handle_chat_message(self, text: str):
+        if qasync:
+            loop = asyncio.get_event_loop()
+            loop.create_task(self._run_chat_task(text))
+
+    async def _run_chat_task(self, text: str):
+        self.status_changed.emit("VoxOS: Thinking...", "#A855F7")
+        try:
+            from voxos.agents.listener.agent import ListenerAgent
+            from voxos.agents.strategist.agent import StrategistAgent
+            from voxos.agents.executor.agent import ExecutorAgent
+            from voxos.agents.overseer.agent import OverseerAgent
+            from voxos.core.task_manager.manager import TaskManager
+            from voxos.core.permissions import PermissionManager
+            
+            listener = ListenerAgent()
+            strategist = StrategistAgent()
+            executor = ExecutorAgent()
+            overseer = OverseerAgent()
+            manager = TaskManager()
+            permissions = PermissionManager()
+            
+            task = await manager.submit_task(
+                user_request=text,
+                session_id=self.session_id
+            )
+            
+            result_task = await manager.run_pipeline(
+                task=task,
+                listener=listener,
+                strategist=strategist,
+                executor=executor,
+                overseer=overseer,
+                permissions=permissions
+            )
+            
+            if result_task.result:
+                self.transcript_received.emit(f"VoxOS [Success]: {result_task.result}")
+            elif result_task.error_info:
+                self.transcript_received.emit(f"VoxOS [Error]: {result_task.error_info}")
+            else:
+                self.transcript_received.emit(f"VoxOS: Completed with status {result_task.status.name}")
+        except Exception as e:
+            log.exception("chat_task_error", error=str(e))
+            self.transcript_received.emit(f"VoxOS [System Error]: {str(e)}")
+        finally:
+            self.status_changed.emit("VoxOS: Idle", "#94a3b8")
+
     def quit(self):
         log.info("Shutting down VoxOS...")
         self.hotkey_listener.stop()
@@ -273,6 +300,7 @@ def run_ui(session_id: str):
     # Force the settings window to show up immediately so we know it's alive!
     print("Forcing settings window to show...")
     voxos.show_settings()
+    voxos.show_dashboard()
     
     print("Entering Qt event loop...")
     with loop:

@@ -59,6 +59,7 @@ FAST_PATH_INTENT_TO_TOOL: dict[str, str] = {
     "minimize_window":   "desktop.minimize_window",
     "maximize_window":   "desktop.maximize_window",
     # Filesystem
+    "search_files":      "os.search_files",
     "list_files":        "os.list_dir",
     "list_directory":    "os.list_dir",
     "list_dir":          "os.list_dir",
@@ -135,6 +136,11 @@ class ExecutionRouter:
         Anything else goes to REASONING.
         """
         if intent in FAST_PATH_INTENT_TO_TOOL and confidence >= 0.80:
+            if intent == "open_application" and entities:
+                app = str(entities.get("application", "") or entities.get("name", "")).lower()
+                # Bypass desktop launcher for web automation or complex media playback
+                if "youtube" in app or "video" in entities or "url" in entities or "search" in entities:
+                    return ExecutionClass.STRATEGIST
             return ExecutionClass.FAST_PATH
 
         if intent in AUTOMATION_INTENTS and confidence >= 0.70:

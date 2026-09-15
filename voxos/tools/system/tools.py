@@ -201,6 +201,9 @@ class GetSystemResourcesTool(BaseTool):
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage("/")
+        battery = psutil.sensors_battery()
+        net_io = psutil.net_io_counters()
+        disk_io = psutil.disk_io_counters()
 
         data: dict[str, Any] = {
             "cpu": {
@@ -220,6 +223,18 @@ class GetSystemResourcesTool(BaseTool):
                 "used_gb": round(disk.used / 1_073_741_824, 2),
                 "percent": disk.percent,
             },
+            "battery": {
+                "percent": battery.percent if battery else None,
+                "power_plugged": battery.power_plugged if battery else None,
+            },
+            "network": {
+                "bytes_sent": net_io.bytes_sent if net_io else 0,
+                "bytes_recv": net_io.bytes_recv if net_io else 0,
+            },
+            "disk_io": {
+                "read_bytes": disk_io.read_bytes if disk_io else 0,
+                "write_bytes": disk_io.write_bytes if disk_io else 0,
+            }
         }
 
         if args.include_processes:
@@ -271,3 +286,83 @@ def _format_uptime(seconds: float) -> str:
     if hours > 0:
         return f"{hours}h {minutes}m"
     return f"{minutes}m"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Volume Control Tools
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SetVolumeArgs(BaseModel):
+    level: int = Field(..., description="Volume level from 0 to 100")
+
+class SetVolumeTool(BaseTool):
+    @property
+    def metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="desktop.set_volume",
+            description="Set the system audio volume (0-100).",
+            risk_level=RiskLevel.LOW,
+            requires_confirmation=False,
+            verification_type=VerificationType.NONE,
+            timeout_seconds=5,
+            category="desktop",
+        )
+
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return SetVolumeArgs
+
+    async def _execute(self, args: SetVolumeArgs) -> ToolResult:
+        try:
+            from ctypes import cast, POINTER
+            from comtypes import CLSCTX_ALL
+            from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+            
+            devices = AudioUtilities.GetSpeakers()
+            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+            volume = cast(interface, POINTER(IAudioEndpointVolume))
+            
+            level = max(0, min(100, args.level))
+            scalar_vol = level / 100.0
+            volume.SetMasterVolumeLevelScalar(scalar_vol, None)
+            
+            return ToolResult.ok(data={"volume": level})
+        except ImportError:
+            return ToolResult.fail("pycaw is not installed.", "MISSING_DEP")
+        except Exception as e:
+            return ToolResult.fail(f"Failed to set volume: {str(e)}")
+
+class MuteVolumeArgs(BaseModel):
+    mute: bool = Field(True, description="True to mute, False to unmute.")
+
+class MuteVolumeTool(BaseTool):
+    @property
+    def metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="desktop.mute_volume",
+            description="Mute or unmute the system audio.",
+            risk_level=RiskLevel.LOW,
+            requires_confirmation=False,
+            verification_type=VerificationType.NONE,
+            timeout_seconds=5,
+            category="desktop",
+        )
+
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return MuteVolumeArgs
+
+    async def _execute(self, args: MuteVolumeArgs) -> ToolResult:
+        try:
+            from ctypes import cast, POINTER
+            from comtypes import CLSCTX_ALL
+            from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+            
+            devices = AudioUtilities.GetSpeakers()
+            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+            volume = cast(interface, POINTER(IAudioEndpointVolume))
+            
+            volume.SetMute(1 if args.mute else 0, None)
+            return ToolResult.ok(data={"muted": args.mute})
+        except Exception as e:
+            return ToolResult.fail(f"Failed to mute volume: {str(e)}")

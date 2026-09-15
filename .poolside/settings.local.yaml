@@ -1,0 +1,14 @@
+tools:
+    shell:
+        allow:
+            - PowerShell *
+            - echo *
+            - ls *
+            - cat *
+            - find *
+            - grep *
+            - head *
+            - wc *
+paths:
+    allow:
+        - path: /home/Jitendra Chaudhary/backend/src/app/**

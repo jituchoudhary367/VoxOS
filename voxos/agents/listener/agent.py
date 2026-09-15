@@ -73,6 +73,7 @@ Intent naming rules:
 - Be specific: "open_application", "search_web", "get_system_info", "get_current_time"
 - Multilingual equivalents map to the SAME intent:
   "Open Chrome" = "Chrome kholo" = "Chrome खोलो" → intent: "open_application", entity: {application: "chrome"}
+- IMPORTANT: If a user says "open chrome and search..." or asks to play a video/music, the primary intent is "search_web" or "play_media", NOT "open_application".
 
 Example response:
 {
@@ -201,6 +202,12 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
         from pathlib import Path
 
         text_lower = text.lower().strip()
+        
+        # If it's a complex multi-part request, bypass fast path for Strategist routing
+        complex_keywords = [" and ", " then ", " after ", " search ", " play ", " summarize ", " find "]
+        if any(kw in text_lower for kw in complex_keywords):
+            return None
+
         text_clean = re.sub(r'[^\w\s]', '', text_lower)  # strip punctuation
 
         # ── Greetings ─────────────────────────────────────────────────────────
@@ -245,6 +252,19 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
         if any(re.search(p, text_clean) for p in SYS_INFO_PATTERNS):
             return ListenerOutput(intent="get_system_info", language="en",
                                   entities={}, requires_execution=True, confidence=1.0)
+
+        # ── Recent Files / Downloads ──────────────────────────────────────────
+        RECENT_DOWNLOADS_REGEX = re.compile(
+            r"^(?:show|find|search|get) (?:last|past|recent) (?:(?:(\d+)|(one|two|three|four|five|six|seven|ten)) days )?(?:downloads|files in downloads)$"
+        )
+        m = RECENT_DOWNLOADS_REGEX.match(text_clean)
+        if m:
+            days_str = m.group(1) or m.group(2)
+            word_to_num = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "ten": 10}
+            days = int(days_str) if days_str and days_str.isdigit() else word_to_num.get(days_str, 2)
+            return ListenerOutput(intent="search_files", language="en",
+                                  entities={"search_path": "downloads", "modified_within_days": days},
+                                  requires_execution=True, confidence=1.0)
 
         # ── Screenshot ────────────────────────────────────────────────────────
         SCREENSHOT_PATTERNS = [

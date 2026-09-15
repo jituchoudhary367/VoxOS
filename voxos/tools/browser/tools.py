@@ -38,6 +38,7 @@ try:
 except ImportError:
     _PLAYWRIGHT_AVAILABLE = False
 
+_playwright_context_manager = None
 _playwright_instance = None
 _browser_instance = None
 _context_instance = None
@@ -47,7 +48,7 @@ _init_lock = asyncio.Lock()
 
 async def _get_browser_session() -> "Page":
     """Get or create a persistent visible Playwright session."""
-    global _playwright_instance, _browser_instance, _context_instance, _page_instance
+    global _playwright_context_manager, _playwright_instance, _browser_instance, _context_instance, _page_instance
 
     if not _PLAYWRIGHT_AVAILABLE:
         raise RuntimeError(
@@ -63,12 +64,14 @@ async def _get_browser_session() -> "Page":
             except Exception:
                 _page_instance = None
 
-        if _playwright_instance is None:
-            _playwright_instance = await async_playwright().start()
+        if _playwright_context_manager is None:
+            _playwright_context_manager = async_playwright()
+            _playwright_instance = await _playwright_context_manager.start()
 
         if _browser_instance is None or not _browser_instance.is_connected():
             _browser_instance = await _playwright_instance.chromium.launch(
                 headless=False,  # Visible browser
+                channel="chrome", # Use the system's Google Chrome
                 args=["--start-maximized"],
             )
 
@@ -87,12 +90,12 @@ async def _get_browser_session() -> "Page":
 
 async def _close_browser_session() -> None:
     """Clean up the browser session."""
-    global _playwright_instance, _browser_instance, _context_instance, _page_instance
+    global _playwright_context_manager, _playwright_instance, _browser_instance, _context_instance, _page_instance
     if _browser_instance:
         await _browser_instance.close()
-    if _playwright_instance:
-        await _playwright_instance.stop()
-    _playwright_instance = _browser_instance = _context_instance = _page_instance = None
+    if _playwright_context_manager:
+        await _playwright_context_manager.stop()
+    _playwright_context_manager = _playwright_instance = _browser_instance = _context_instance = _page_instance = None
 
 
 # ---------------------------------------------------------------------------
@@ -332,8 +335,11 @@ class BrowserExtractTool(BaseTool):
 
             selector = args.selector or "body"
             text = await page.evaluate(f"""() => {{
-                const el = document.querySelector("{selector}");
-                return el ? el.innerText : "";
+                if ("{selector}" === "body") {{
+                    return document.body.innerText;
+                }}
+                const els = document.querySelectorAll("{selector}");
+                return Array.from(els).map(el => el.innerText).join('\\n');
             }}""")
 
             if not text:

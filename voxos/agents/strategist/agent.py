@@ -94,6 +94,7 @@ Rules:
 - Set tool=null for steps that are pure reasoning/formatting (not tool calls)
 - Keep plans minimal — don't add unnecessary steps
 - If a step deletes/destroys something, note it in the risk level
+- IMPORTANT: If the user asks to search the web or open a URL (e.g., "open chrome and search for X"), ALWAYS use `browser.search` or `browser.open` instead of `desktop.open_app`.
 
 For simple single-tool intents, produce a 1-step plan.
 For complex multi-step tasks, decompose carefully.

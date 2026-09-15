@@ -133,6 +133,14 @@ def build_fallback_plan(intent: str, entities: dict[str, Any]) -> TaskPlan:
         "search_web": ("web.search", {"query": entities.get("query", "")}),
         "browse_url": ("browser.open", {"url": entities.get("url", "")}),
         "read_file": ("os.read_file", {"file_path": entities.get("file_path", "")}),
+        "search_files": (
+            "os.search_files",
+            {
+                "search_path": entities.get("search_path", "home"),
+                "pattern": entities.get("pattern", "*"),
+                "modified_within_days": entities.get("modified_within_days")
+            }
+        ),
     }
 
     if intent in INTENT_TOOL_MAP:

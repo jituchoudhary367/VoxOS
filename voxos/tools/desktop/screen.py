@@ -82,3 +82,76 @@ class DesktopScreenshotTool(BaseTool):
                     
         except Exception as e:
             return ToolResult.fail(f"Failed to capture screenshot: {str(e)}", "SCREENSHOT_ERROR")
+
+
+# ---------------------------------------------------------------------------
+# UI Elements Tool
+# ---------------------------------------------------------------------------
+
+class UIElementsArgs(BaseModel):
+    max_depth: int = Field(default=3, description="Maximum depth of the UI tree to traverse.")
+    window_title: str | None = Field(default=None, description="Title of the window to inspect. If None, inspects the Desktop root.")
+
+class GetUIElementsTool(BaseTool):
+    """
+    Extracts structural UI elements (buttons, text) from windows using UIAutomation.
+    """
+    @property
+    def metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="desktop.get_ui_elements",
+            description="Get a structural list of UI elements (buttons, text boxes, etc.) for a window or the desktop.",
+            risk_level=RiskLevel.LOW,
+            requires_confirmation=False,
+            verification_type=VerificationType.NONE,
+            timeout_seconds=30,
+            category="desktop",
+        )
+
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return UIElementsArgs
+
+    async def _execute(self, args: UIElementsArgs) -> ToolResult:
+        try:
+            import uiautomation as auto
+            auto.SetGlobalSearchTimeout(3.0)
+        except ImportError:
+            return ToolResult.fail("uiautomation package is not installed. Run: pip install uiautomation")
+
+        try:
+            if args.window_title:
+                window = auto.WindowControl(searchDepth=1, Name=args.window_title)
+                if not window.Exists(3, 1):
+                    return ToolResult.fail(f"Window '{args.window_title}' not found.")
+            else:
+                # Desktop root
+                window = auto.GetRootControl()
+            
+            elements = []
+            
+            def traverse(ctrl, current_depth):
+                if current_depth > args.max_depth:
+                    return
+                for child in ctrl.GetChildren():
+                    try:
+                        name = child.Name
+                        rect = child.BoundingRectangle
+                        c_type = child.ControlTypeName
+                        # Only collect elements that have names or are interactive/textual
+                        if name or c_type in ("ButtonControl", "EditControl", "TextControl", "DocumentControl"):
+                            elements.append({
+                                "name": name,
+                                "type": c_type,
+                                "rect": [rect.left, rect.top, rect.right, rect.bottom]
+                            })
+                        traverse(child, current_depth + 1)
+                    except Exception:
+                        pass
+                        
+            traverse(window, 1)
+            return ToolResult.ok(data={"window": window.Name, "elements": elements, "count": len(elements)})
+
+        except Exception as e:
+            return ToolResult.fail(f"Failed to get UI elements: {str(e)}", "UI_AUTOMATION_ERROR")
+

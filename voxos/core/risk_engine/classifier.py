@@ -68,16 +68,16 @@ CRITICAL_PATTERNS = [
     r"\brmdir\s+/[sS]",                        # Windows rmdir /s
     r"\bdel\s+/[sS]",                          # Windows del /s
     r"\bformat\b",                              # disk format
-    r"\bddiskpart\b",                          # Windows disk partitioning
-    r"\bdd\s+if=/dev/zero",                    # disk wipe
-    r"\bshred\b",                              # secure file deletion
+    r"\bdiskpart\b",                            # Windows disk partitioning
+    r"\bdd\s+if=/dev/zero",                     # disk wipe
+    r"\bshred\b",                               # secure file deletion
     # Credential/secret operations
     r"\bpasswd\b",
     r"\bchpasswd\b",
     r"\bsudo\s+passwd",
     r"\bnet\s+user.*password",
     # System-level operations
-    r"\binit\s+0",                             # shutdown
+    r"\binit\s+0",                              # shutdown
     r"\bshutdown\b",
     r"\breboot\b",
     r"\bhalt\b",
@@ -89,6 +89,10 @@ CRITICAL_PATTERNS = [
     r"(curl|wget).*\|.*sh",
     r"(curl|wget).*\|.*bash",
     r"(curl|wget).*\|.*python",
+    # Obfuscation and nested execution
+    r"\bpowershell\s+-(Enc|EncodedCommand)\b",  # Encoded PowerShell
+    r"[A-Za-z0-9+/]{50,}={0,2}",                # Base64 payloads (heuristically >50 chars)
+    r"\bcmd\s+/c\s+[\"']?(powershell|bash|sh)\b",# Nested shell execution
 ]
 
 HIGH_RISK_PATTERNS = [

@@ -94,8 +94,8 @@ class LLMSettings(BaseSettings):
     base_url: str = "https://api.groq.com/openai/v1"
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
     openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
-    fast_model: str = "llama-3.1-8b-instant"
-    strong_model: str = "llama-3.3-70b-versatile"
+    fast_model: str = "openai/gpt-oss-20b"
+    strong_model: str = "openai/gpt-oss-120b"
     max_tokens: int = 4096
     temperature: float = 0.1
 

@@ -127,8 +127,34 @@ class JarvisBridge(FrameProcessor):
                 await self.speak("I encountered an error while processing your request.")
 
     async def speak(self, text: str):
-        """Push a TextFrame down to trigger the TTS service."""
+        """Play TTS audio directly via edge-tts."""
         log.info("voice_speaking", text=text)
         if self.on_transcript:
             self.on_transcript(f"VoxOS: {text}")
-        await self.push_frame(TextFrame(text), FrameDirection.DOWNSTREAM)
+        
+        from voxos.voice.tts.edge_tts_provider import get_tts_provider
+        provider = get_tts_provider()
+        result = await provider.synthesize(text)
+        
+        if result.audio_bytes:
+            from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+            from PySide6.QtCore import QUrl
+            import tempfile, os
+            
+            temp_dir = tempfile.gettempdir()
+            mp3_path = os.path.join(temp_dir, "voxos_tts.mp3")
+            with open(mp3_path, "wb") as f:
+                f.write(result.audio_bytes)
+                
+            if not hasattr(self, 'player'):
+                self.player = QMediaPlayer()
+                self.audio_output = QAudioOutput()
+                self.player.setAudioOutput(self.audio_output)
+                
+            self.player.setSource(QUrl.fromLocalFile(mp3_path))
+            self.player.play()
+            
+            # Wait briefly for state to update, then wait for playing to finish
+            await asyncio.sleep(0.1)
+            while self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+                await asyncio.sleep(0.1)

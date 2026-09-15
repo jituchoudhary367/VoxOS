@@ -5,6 +5,8 @@ Allows VoxOS to execute arbitrary shell commands on the host OS.
 
 import asyncio
 import os
+import time
+import psutil
 from typing import Any, Tuple
 
 from pydantic import BaseModel, Field
@@ -42,6 +44,7 @@ class ShellCommandTool(BaseTool):
 
     async def _execute(self, args: ShellCommandArgs) -> ToolResult:
         """Executes the shell command and captures output."""
+        start_time = time.monotonic()
         log.info("executing_shell_command", command=args.command, cwd=args.cwd)
 
         # Phase 5: Dynamic Risk Classification
@@ -98,35 +101,41 @@ class ShellCommandTool(BaseTool):
                 stderr_len=len(stderr_str),
             )
 
+            duration_ms = int((time.monotonic() - start_time) * 1000)
+            result_data = {
+                "exit_code": exit_code,
+                "stdout": stdout_str,
+                "stderr": stderr_str,
+                "duration_ms": duration_ms,
+                "cwd": args.cwd or os.getcwd(),
+            }
+            if 'risk_result' in locals():
+                result_data["risk_level"] = risk_result.risk_level.name
+
             if exit_code == 0:
-                return ToolResult.ok(
-                    data={
-                        "exit_code": exit_code,
-                        "stdout": stdout_str,
-                        "stderr": stderr_str,
-                    },
-                )
+                return ToolResult.ok(data=result_data)
             else:
                 return ToolResult.fail(
                     error=f"Command failed with exit code {exit_code}\nStderr: {stderr_str}\nStdout: {stdout_str}",
                     error_code="NON_ZERO_EXIT",
-                    data={
-                        "exit_code": exit_code,
-                        "stdout": stdout_str,
-                        "stderr": stderr_str,
-                    },
+                    data=result_data,
                 )
 
         except asyncio.TimeoutError:
+            duration_ms = int((time.monotonic() - start_time) * 1000)
             log.warning("shell_command_timeout", command=args.command, timeout=args.timeout)
-            # Try to kill the process if it timed out
+            # Try to kill the process tree if it timed out
             try:
-                process.kill()
+                parent = psutil.Process(process.pid)
+                for child in parent.children(recursive=True):
+                    child.kill()
+                parent.kill()
             except Exception:
                 pass
             return ToolResult.fail(
                 error=f"Command timed out after {args.timeout} seconds.",
                 error_code="TIMEOUT",
+                data={"duration_ms": duration_ms, "cwd": args.cwd or os.getcwd()}
             )
         except Exception as e:
             log.exception("shell_command_error", command=args.command, error=str(e))

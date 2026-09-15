@@ -632,3 +632,139 @@ class SearchFilesTool(BaseTool):
         except Exception as e:
             log.exception("fs_search_error", path=args.search_path)
             return ToolResult.fail(error=str(e), error_code="FS_ERROR")
+
+
+# ---------------------------------------------------------------------------
+# Archive (Zip) Tool
+# ---------------------------------------------------------------------------
+
+class ArchiveArgs(BaseModel):
+    source_path: str = Field(..., description="Path to the folder or file to archive")
+    dest_zip_path: str = Field(..., description="Path for the output .zip file")
+
+
+class ArchiveTool(BaseTool):
+    @property
+    def metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="os.archive",
+            description="Compress a file or folder into a .zip archive.",
+            risk_level=RiskLevel.LOW,
+            requires_confirmation=False,
+            verification_type=VerificationType.AUTOMATIC,
+            timeout_seconds=120,
+            category="filesystem",
+        )
+
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return ArchiveArgs
+
+    async def _execute(self, args: ArchiveArgs) -> ToolResult:
+        try:
+            src = _resolve_safe_path(args.source_path)
+            dst = _resolve_safe_path(args.dest_zip_path)
+
+            if not src.exists():
+                return ToolResult.fail(f"Source not found: {args.source_path}", "FILE_NOT_FOUND", status="NOT_FOUND")
+
+            if dst.suffix != ".zip":
+                dst = dst.with_suffix(".zip")
+
+            import shutil
+            
+            # shutil.make_archive creates the archive without the .zip extension, so we strip it
+            archive_base = str(dst.with_suffix(''))
+            
+            if src.is_dir():
+                shutil.make_archive(archive_base, 'zip', str(src))
+            else:
+                import zipfile
+                with zipfile.ZipFile(str(dst), 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    zipf.write(str(src), arcname=src.name)
+
+            log.info("fs_archive", src=str(src), dst=str(dst))
+            return ToolResult.ok(data={"source": str(src), "archive": str(dst)})
+
+        except SandboxViolationError as e:
+            return ToolResult.fail(error=str(e), error_code="SANDBOX_VIOLATION", status="PERMISSION_DENIED")
+        except Exception as e:
+            log.exception("fs_archive_error", src=args.source_path, dst=args.dest_zip_path)
+            return ToolResult.fail(error=str(e), error_code="FS_ERROR")
+
+    async def verify(self, args: ArchiveArgs, result: ToolResult) -> VerificationResult:
+        if not result.success:
+            return VerificationResult.fail("Archive failed")
+        try:
+            data = result.data or {}
+            archive_path = data.get("archive")
+            if archive_path and Path(archive_path).exists():
+                return VerificationResult.ok(checks=[{"check": "archive_exists", "passed": True}])
+            return VerificationResult.fail("Archive file not found after creation")
+        except Exception as e:
+            return VerificationResult.fail(str(e))
+
+
+# ---------------------------------------------------------------------------
+# Extract (Unzip) Tool
+# ---------------------------------------------------------------------------
+
+class ExtractArgs(BaseModel):
+    zip_path: str = Field(..., description="Path to the .zip file to extract")
+    dest_path: str = Field(..., description="Destination folder where contents will be extracted")
+
+
+class ExtractTool(BaseTool):
+    @property
+    def metadata(self) -> ToolMetadata:
+        return ToolMetadata(
+            name="os.extract",
+            description="Extract a .zip archive to a destination folder.",
+            risk_level=RiskLevel.MEDIUM,
+            requires_confirmation=False,
+            verification_type=VerificationType.AUTOMATIC,
+            timeout_seconds=120,
+            category="filesystem",
+        )
+
+    @property
+    def input_schema(self) -> type[BaseModel]:
+        return ExtractArgs
+
+    async def _execute(self, args: ExtractArgs) -> ToolResult:
+        try:
+            src = _resolve_safe_path(args.zip_path)
+            dst = _resolve_safe_path(args.dest_path)
+
+            if not src.exists():
+                return ToolResult.fail(f"Archive not found: {args.zip_path}", "FILE_NOT_FOUND", status="NOT_FOUND")
+
+            if not zipfile.is_zipfile(str(src)):
+                return ToolResult.fail(f"Not a valid zip file: {args.zip_path}", "INVALID_ZIP")
+
+            import zipfile
+            with zipfile.ZipFile(str(src), 'r') as zipf:
+                zipf.extractall(str(dst))
+
+            log.info("fs_extract", src=str(src), dst=str(dst))
+            return ToolResult.ok(data={"archive": str(src), "extracted_to": str(dst)})
+
+        except SandboxViolationError as e:
+            return ToolResult.fail(error=str(e), error_code="SANDBOX_VIOLATION", status="PERMISSION_DENIED")
+        except Exception as e:
+            log.exception("fs_extract_error", src=args.zip_path, dst=args.dest_path)
+            return ToolResult.fail(error=str(e), error_code="FS_ERROR")
+
+    async def verify(self, args: ExtractArgs, result: ToolResult) -> VerificationResult:
+        if not result.success:
+            return VerificationResult.fail("Extraction failed")
+        try:
+            data = result.data or {}
+            dest = data.get("extracted_to")
+            if dest and Path(dest).is_dir():
+                # We could check if it's empty, but existence is a good start
+                return VerificationResult.ok(checks=[{"check": "dest_exists", "passed": True}])
+            return VerificationResult.fail("Destination folder not found after extraction")
+        except Exception as e:
+            return VerificationResult.fail(str(e))
+
