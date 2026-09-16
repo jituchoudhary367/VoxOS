@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from voxos.core.events.bus import JarvisEvent, get_event_bus
+from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.risk_engine.engine import get_risk_engine
 from voxos.core.risk_engine.approval import get_approval_gateway
@@ -121,7 +121,7 @@ class ToolRunner:
                 return ToolResult.fail(error="Action rejected by user", error_code="APPROVAL_REJECTED")
 
         # 4. Emit tool started event
-        await self._bus.publish(JarvisEvent(
+        await self._bus.publish(VoxEvent(
             event_type=EventType.TOOL_STARTED,
             payload={"step_id": step.id, "tool": step.tool, "args": step.arguments},
             task_id=task.id,
@@ -138,7 +138,7 @@ class ToolRunner:
             )
             duration_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
 
-            await self._bus.publish(JarvisEvent(
+            await self._bus.publish(VoxEvent(
                 event_type=EventType.TOOL_COMPLETED,
                 payload={
                     "step_id": step.id,
@@ -163,7 +163,7 @@ class ToolRunner:
 
         except asyncio.TimeoutError:
             log.error("tool_timeout", tool=step.tool, timeout=timeout_seconds)
-            await self._bus.publish(JarvisEvent(
+            await self._bus.publish(VoxEvent(
                 event_type=EventType.TOOL_FAILED,
                 payload={"step_id": step.id, "tool": step.tool, "error": "timeout"},
                 task_id=task.id,
@@ -176,7 +176,7 @@ class ToolRunner:
             )
         except Exception as e:
             log.error("tool_exception", tool=step.tool, error=str(e), exc_info=True)
-            await self._bus.publish(JarvisEvent(
+            await self._bus.publish(VoxEvent(
                 event_type=EventType.TOOL_FAILED,
                 payload={"step_id": step.id, "tool": step.tool, "error": str(e)},
                 task_id=task.id,

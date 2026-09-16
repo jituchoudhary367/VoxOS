@@ -28,11 +28,11 @@ from voxos.observability.logger import get_logger
 
 log = get_logger(__name__)
 
-EventHandler = Callable[["JarvisEvent"], Coroutine[Any, Any, None]]
+EventHandler = Callable[["VoxEvent"], Coroutine[Any, Any, None]]
 
 
 @dataclass
-class JarvisEvent:
+class VoxEvent:
     """A typed internal event."""
 
     event_type: EventType
@@ -49,7 +49,7 @@ class JarvisEvent:
         return json.dumps(asdict(self))
 
     @classmethod
-    def from_json(cls, data: str) -> "JarvisEvent":
+    def from_json(cls, data: str) -> "VoxEvent":
         d = json.loads(data)
         d["event_type"] = EventType(d["event_type"])
         return cls(**d)
@@ -63,7 +63,7 @@ class EventBus:
         bus = get_event_bus()
         
         # Publish
-        await bus.publish(JarvisEvent(
+        await bus.publish(VoxEvent(
             event_type=EventType.TASK_STARTED,
             task_id=str(task.id),
             agent="strategist",
@@ -121,7 +121,7 @@ class EventBus:
             self._connected = False
             log.info("event_bus_disconnected")
 
-    async def publish(self, event: JarvisEvent) -> None:
+    async def publish(self, event: VoxEvent) -> None:
         """
         Publish an event to Redis and trigger in-process handlers.
         
@@ -195,7 +195,7 @@ class EventBus:
     async def subscribe_redis(
         self,
         event_types: list[EventType] | None = None,
-    ) -> AsyncIterator[JarvisEvent]:
+    ) -> AsyncIterator[VoxEvent]:
         """
         Subscribe to Redis channels and yield events as they arrive.
         
@@ -217,7 +217,7 @@ class EventBus:
             async for message in pubsub.listen():
                 if message["type"] == "message":
                     try:
-                        event = JarvisEvent.from_json(message["data"])
+                        event = VoxEvent.from_json(message["data"])
                         yield event
                     except Exception as e:
                         log.warning("event_deserialize_error", error=str(e))

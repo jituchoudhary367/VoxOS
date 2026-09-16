@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from voxos.agents.base import BaseAgent
 from voxos.agents.executor.agent import ExecutorOutput
-from voxos.core.events.bus import JarvisEvent, get_event_bus
+from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.task_manager.models import Task
 from voxos.observability.logger import get_logger
@@ -73,7 +73,7 @@ class OverseerAgent(BaseAgent[OverseerInput, OverseerOutput]):
         for step_result in executor_out.step_results:
             step_id = step_result.get("step_id", "unknown")
 
-            await self._bus.publish(JarvisEvent(
+            await self._bus.publish(VoxEvent(
                 event_type=EventType.VERIFICATION_STARTED,
                 payload={"step_id": step_id},
                 task_id=task.id,
@@ -95,7 +95,7 @@ class OverseerAgent(BaseAgent[OverseerInput, OverseerOutput]):
                 if vr.get("passed")
                 else EventType.VERIFICATION_FAILED
             )
-            await self._bus.publish(JarvisEvent(
+            await self._bus.publish(VoxEvent(
                 event_type=event_type,
                 payload=vr,
                 task_id=task.id,

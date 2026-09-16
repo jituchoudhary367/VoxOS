@@ -36,8 +36,11 @@ dependencies = [
     "tiktoken>=0.8.0",
 
     # --- Voice ---
-    "pipecat-ai[silero,websocket,openai]>=0.0.50",
-    "deepgram-sdk>=3.8.0",
+    # 1.x is required: VAD and turn taking are pipeline processors there, not
+    # transport parameters (see voxos/voice/pipeline.py).
+    "pipecat-ai[silero,websocket,openai,deepgram]>=1.9.0",
+    # 4.x restructured the client into a resource tree (client.listen.v1.media).
+    "deepgram-sdk>=4.0.0",
     "edge-tts>=6.1.12",
     "pyaudio>=0.2.14",
     "openwakeword>=0.6.0",

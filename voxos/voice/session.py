@@ -8,7 +8,6 @@ to their corresponding VoicePipelines.
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
 from voxos.observability.logger import get_logger
 from voxos.voice.pipeline import VoicePipeline

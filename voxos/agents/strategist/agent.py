@@ -18,7 +18,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from voxos.agents.base import BaseAgent
-from voxos.core.events.bus import JarvisEvent, get_event_bus
+from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.task_manager.models import TaskPlan, TaskStep
 from voxos.llm.base import LLMMessage
@@ -127,7 +127,7 @@ class StrategistAgent(BaseAgent[StrategistInput, StrategistOutput]):
         async with metrics.async_timer("agent.latency", agent=self.name):
             output = await self._create_plan(input)
 
-        await self._bus.publish(JarvisEvent(
+        await self._bus.publish(VoxEvent(
             event_type=EventType.PLAN_CREATED,
             payload={
                 "task_id": input.task_id,

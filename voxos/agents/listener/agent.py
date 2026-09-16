@@ -21,7 +21,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from voxos.agents.base import BaseAgent
-from voxos.core.events.bus import JarvisEvent, get_event_bus
+from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.llm.base import LLMMessage
 from voxos.llm.router import TaskComplexity, get_llm_router
@@ -121,7 +121,7 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
             output = await self._classify_intent(input)
 
         # Emit event
-        await self._bus.publish(JarvisEvent(
+        await self._bus.publish(VoxEvent(
             event_type=EventType.INTENT_DETECTED,
             payload={
                 "intent": output.intent,
@@ -203,16 +203,42 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
 
         text_lower = text.lower().strip()
         
+        text_clean = re.sub(r'[^\w\s]', '', text_lower)  # strip punctuation
+
+        # ── Deterministic browser actions ────────────────────────────────────
+        if text_clean in {"open browser", "open the browser", "launch browser"}:
+            return ListenerOutput(intent="open_browser", language="en",
+                                  entities={"url": "about:blank"},
+                                  requires_execution=True, confidence=1.0)
+
+        if text_clean in {"open youtube", "open the youtube", "launch youtube"}:
+            return ListenerOutput(intent="open_youtube", language="en",
+                                  entities={"url": "https://www.youtube.com"},
+                                  requires_execution=True, confidence=1.0)
+
+        browser_search = re.match(
+            r"^(?:(?:open (?:chrome|browser) and )|now )?search(?: for)?\s+(.+)$",
+            text_clean,
+        )
+        if browser_search:
+            query = browser_search.group(1).strip()
+            if query:
+                return ListenerOutput(
+                    intent="search_web_browser",
+                    language="en",
+                    entities={"query": query, "engine": "google" if query == "google" else "bing"},
+                    requires_execution=True,
+                    confidence=1.0,
+                )
+
         # If it's a complex multi-part request, bypass fast path for Strategist routing
         complex_keywords = [" and ", " then ", " after ", " search ", " play ", " summarize ", " find "]
         if any(kw in text_lower for kw in complex_keywords):
             return None
 
-        text_clean = re.sub(r'[^\w\s]', '', text_lower)  # strip punctuation
-
         # ── Greetings ─────────────────────────────────────────────────────────
         GREETINGS = {"hi", "hello", "hey", "hey voxos", "hi voxos", "hello voxos",
-                     "namaste", "namaskar", "hey jarvis"}
+                     "namaste", "namaskar", "hey vox"}
         if text_clean in GREETINGS:
             return ListenerOutput(intent="general_conversation", language="en",
                                   entities={"type": "greeting"},
@@ -381,4 +407,3 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
                                   entities={}, requires_execution=False, confidence=1.0)
 
         return None
-

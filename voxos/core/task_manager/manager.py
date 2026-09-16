@@ -18,7 +18,7 @@ import asyncio
 import uuid
 from typing import Any
 
-from voxos.core.events.bus import JarvisEvent, get_event_bus
+from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.task_manager.models import Task, TaskStatus
 from voxos.agents.overseer.agent import OverseerOutput
@@ -194,7 +194,7 @@ class TaskManager:
 
         event_type = event_map.get(new_status, EventType.TASK_STARTED)
         bus = get_event_bus()
-        await bus.publish(JarvisEvent(
+        await bus.publish(VoxEvent(
             event_type=event_type,
             payload={
                 "task_id": task.id,
@@ -322,7 +322,11 @@ class TaskManager:
         if exec_class in (ExecutionClass.FAST_PATH, ExecutionClass.AUTOMATION):
             log.info("deterministic_path_selected", task_id=task.id, intent=listener_output.intent, exec_class=exec_class.value)
             
-            tool_name = router.fast_path_tool(listener_output.intent) or listener_output.intent
+            tool_name = (
+                router.fast_path_tool(listener_output.intent)
+                or router.automation_tool(listener_output.intent)
+                or listener_output.intent
+            )
             
             task.plan = TaskPlan(
                 goal=task.user_request,

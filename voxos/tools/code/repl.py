@@ -52,7 +52,7 @@ class PythonREPLTool(BaseTool):
         timeout = arguments.timeout
 
         # Write code to a temporary file
-        fd, filepath = tempfile.mkstemp(suffix=".py", prefix="jarvis_repl_")
+        fd, filepath = tempfile.mkstemp(suffix=".py", prefix="vox_repl_")
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 f.write(code)

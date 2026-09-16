@@ -12,8 +12,17 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _vox_alias(suffix: str) -> AliasChoices:
+    """Accept both VOX_<suffix> and the legacy JARVIS_<suffix>.
+
+    The agent is called Vox; the JARVIS_* names predate the rename and are kept
+    so existing .env files keep working. VOX_* wins when both are set.
+    """
+    return AliasChoices(f"VOX_{suffix}", f"JARVIS_{suffix}")
 
 
 def _env_file_paths() -> tuple[str, ...]:
@@ -30,7 +39,7 @@ class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="POSTGRES_", extra="ignore")
 
     user: str = "voxos"
-    password: str = "jarvis_dev_secret"
+    password: str = "vox_dev_secret"
     db: str = "voxos"
     host: str = "localhost"
     port: int = 5432
@@ -118,26 +127,70 @@ class STTSettings(BaseSettings):
     deepgram_model: str = Field(default="nova-3", alias="DEEPGRAM_MODEL")
     deepgram_language: str = Field(default="multi", alias="DEEPGRAM_LANGUAGE")
 
+    # Comma-separated terms Deepgram should bias towards — assistant name, app
+    # names, Indian proper nouns. nova-3 only; ignored by older models.
+    deepgram_keyterms: str = Field(default="", alias="DEEPGRAM_KEYTERMS")
+
 
 class TTSSettings(BaseSettings):
-    """Text-to-Speech settings."""
+    """Text-to-Speech settings.
+
+    Deepgram Aura streams into the voice pipeline and is the fast path, but it
+    speaks English only — Hindi and Hinglish replies fall back to edge-tts.
+    """
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    tts_provider: str = Field(default="edge", alias="TTS_PROVIDER")
+    tts_provider: str = Field(default="deepgram", alias="TTS_PROVIDER")
+    deepgram_tts_voice: str = Field(
+        default="aura-2-thalia-en", alias="DEEPGRAM_TTS_VOICE"
+    )
     edge_tts_voice: str = Field(default="en-US-AriaNeural", alias="EDGE_TTS_VOICE")
     edge_tts_rate: int = Field(default=0, alias="EDGE_TTS_RATE")
     edge_tts_volume: int = Field(default=0, alias="EDGE_TTS_VOLUME")
 
 
 class VoiceSettings(BaseSettings):
-    """Voice pipeline settings."""
+    """Voice pipeline settings.
+
+    The VAD and turn-timing knobs decide how much room noise reaches the STT
+    service and how long VoxOS waits before replying. Raise `vad_confidence` /
+    `vad_min_volume` in a noisy room; lower `user_speech_timeout` for snappier
+    replies at the cost of cutting off slow speakers.
+    """
 
     model_config = SettingsConfigDict(env_prefix="VOICE_", extra="ignore")
 
     sample_rate: int = 16000
     vad_enabled: bool = True
     interruption_enabled: bool = True
+
+    # Voice activity detection
+    vad_confidence: float = 0.8
+    vad_start_secs: float = 0.2
+    vad_stop_secs: float = 0.4
+    vad_min_volume: float = 0.65
+
+    # Turn taking
+    user_speech_timeout: float = 0.6
+
+    # Echo suppression: keep the mic muted this long after VoxOS stops speaking.
+    echo_hangover_secs: float = 0.4
+
+    # Transcript quality floor before a turn reaches the agent pipeline.
+    min_transcript_words: int = 2
+    min_transcript_confidence: float = 0.35
+
+    # Playback rate for streamed TTS. Must match what the voice produces or
+    # replies play back at the wrong pitch.
+    tts_sample_rate: int = 24000
+
+    # Wake-up. Both paths can run at once: say the wake word, or press the key.
+    wake_word_enabled: bool = True
+    wake_word_models: str = "hey_jarvis"
+    wake_word_sensitivity: float = 0.6
+    hotkey: str = "ctrl+space"
+    hotkey_hold_secs: float = 0.35
 
 
 class SecuritySettings(BaseSettings):
@@ -147,7 +200,7 @@ class SecuritySettings(BaseSettings):
 
     secret_key: str = Field(
         default="INSECURE-CHANGE-ME-IN-PRODUCTION",
-        alias="JARVIS_SECRET_KEY",
+        validation_alias=_vox_alias("SECRET_KEY"),
     )
     jwt_secret_key: str = Field(
         default="INSECURE-JWT-CHANGE-ME",
@@ -178,8 +231,8 @@ class WorkspaceSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
     workspace_root: str = Field(
-        default="~/JarvisWorkspace",
-        alias="JARVIS_WORKSPACE_ROOT",
+        default="~/VoxWorkspace",
+        validation_alias=_vox_alias("WORKSPACE_ROOT"),
     )
     filesystem_strict_mode: bool = Field(default=True, alias="FILESYSTEM_STRICT_MODE")
 
@@ -211,11 +264,11 @@ class Settings(BaseSettings):
     # Application
     env: Literal["development", "production", "test"] = Field(
         default="development",
-        alias="JARVIS_ENV",
+        validation_alias=_vox_alias("ENV"),
     )
-    debug: bool = Field(default=True, alias="JARVIS_DEBUG")
-    host: str = Field(default="0.0.0.0", alias="JARVIS_HOST")
-    port: int = Field(default=8000, alias="JARVIS_PORT")
+    debug: bool = Field(default=True, validation_alias=_vox_alias("DEBUG"))
+    host: str = Field(default="0.0.0.0", validation_alias=_vox_alias("HOST"))
+    port: int = Field(default=8000, validation_alias=_vox_alias("PORT"))
 
     # Sub-settings (lazily instantiated)
     @property

@@ -7,7 +7,7 @@ cross-cutting concerns like audit logging, metrics, and WebSocket push.
 
 from __future__ import annotations
 
-from voxos.core.events.bus import JarvisEvent
+from voxos.core.events.bus import VoxEvent
 from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
 
@@ -15,7 +15,7 @@ log = get_logger(__name__)
 metrics = get_metrics()
 
 
-async def handle_task_completed(event: JarvisEvent) -> None:
+async def handle_task_completed(event: VoxEvent) -> None:
     """Log and count completed tasks."""
     log.info(
         "event_task_completed",
@@ -26,7 +26,7 @@ async def handle_task_completed(event: JarvisEvent) -> None:
     metrics.increment("tasks.completed_events")
 
 
-async def handle_task_failed(event: JarvisEvent) -> None:
+async def handle_task_failed(event: VoxEvent) -> None:
     """Log failed tasks with context."""
     log.error(
         "event_task_failed",
@@ -37,7 +37,7 @@ async def handle_task_failed(event: JarvisEvent) -> None:
     metrics.increment("tasks.failed_events")
 
 
-async def handle_approval_required(event: JarvisEvent) -> None:
+async def handle_approval_required(event: VoxEvent) -> None:
     """Log approval requests — UI should surface these to user."""
     log.warning(
         "event_approval_required",
@@ -48,17 +48,17 @@ async def handle_approval_required(event: JarvisEvent) -> None:
     metrics.increment("approvals.requested")
 
 
-async def handle_approval_granted(event: JarvisEvent) -> None:
+async def handle_approval_granted(event: VoxEvent) -> None:
     log.info("event_approval_granted", task_id=event.task_id, payload=event.payload)
     metrics.increment("approvals.granted")
 
 
-async def handle_approval_rejected(event: JarvisEvent) -> None:
+async def handle_approval_rejected(event: VoxEvent) -> None:
     log.info("event_approval_rejected", task_id=event.task_id, payload=event.payload)
     metrics.increment("approvals.rejected")
 
 
-async def handle_tool_failed(event: JarvisEvent) -> None:
+async def handle_tool_failed(event: VoxEvent) -> None:
     log.error(
         "event_tool_failed",
         task_id=event.task_id,
@@ -68,7 +68,7 @@ async def handle_tool_failed(event: JarvisEvent) -> None:
     metrics.increment("tools.failed_events", tool=event.tool or "unknown")
 
 
-async def handle_verification_failed(event: JarvisEvent) -> None:
+async def handle_verification_failed(event: VoxEvent) -> None:
     log.warning(
         "event_verification_failed",
         task_id=event.task_id,

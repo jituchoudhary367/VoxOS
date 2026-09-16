@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
-from voxos.core.events.bus import JarvisEvent, get_event_bus
+from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.risk_engine.classifier import ClassificationResult, CommandRiskClassifier
 from voxos.tools.base import BaseTool, RiskLevel
@@ -192,7 +192,7 @@ class RiskEngine:
 
         # Emit approval required event
         bus = get_event_bus()
-        await bus.publish(JarvisEvent(
+        await bus.publish(VoxEvent(
             event_type=EventType.APPROVAL_REQUIRED,
             payload=approval.to_dict(),
             task_id=task_id,
@@ -226,7 +226,7 @@ class RiskEngine:
         if approval.is_expired():
             approval.status = "EXPIRED"
             bus = get_event_bus()
-            await bus.publish(JarvisEvent(
+            await bus.publish(VoxEvent(
                 event_type=EventType.APPROVAL_EXPIRED,
                 payload={"approval_id": approval_id},
                 task_id=approval.task_id,
@@ -237,7 +237,7 @@ class RiskEngine:
 
         bus = get_event_bus()
         event_type = EventType.APPROVAL_GRANTED if approved else EventType.APPROVAL_REJECTED
-        await bus.publish(JarvisEvent(
+        await bus.publish(VoxEvent(
             event_type=event_type,
             payload={"approval_id": approval_id, "status": approval.status},
             task_id=approval.task_id,

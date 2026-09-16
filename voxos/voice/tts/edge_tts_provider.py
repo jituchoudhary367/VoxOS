@@ -7,8 +7,6 @@ edge-tts is completely free, offline-capable, and supports
 
 from __future__ import annotations
 
-import asyncio
-import io
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import lru_cache
@@ -132,8 +130,13 @@ class EdgeTTSProvider(TTSProvider):
                 return TTSResult(audio_bytes=b"", format="mp3")
 
     def _select_voice(self, language: str) -> str:
-        """Select the best voice for a given language code."""
-        if self._custom_voice:
+        """Select the best voice for a given language code.
+
+        A configured override only applies to the language it belongs to.
+        EDGE_TTS_VOICE is an English voice by default, and letting it answer a
+        Hindi reply produces an English speaker reading Devanagari.
+        """
+        if self._custom_voice and self._custom_voice.startswith(language.split("-")[0]):
             return self._custom_voice
         # Try exact match, then language prefix, then default
         return (

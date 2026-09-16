@@ -19,7 +19,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from voxos.agents.base import BaseAgent
-from voxos.core.events.bus import JarvisEvent, get_event_bus
+from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.risk_engine.engine import RiskDecision, get_risk_engine
 from voxos.core.task_manager.models import StepStatus, Task, TaskStep
@@ -167,7 +167,7 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
         step.status = StepStatus.IN_PROGRESS
         step.started_at = datetime.now(timezone.utc)
 
-        await self._bus.publish(JarvisEvent(
+        await self._bus.publish(VoxEvent(
             event_type=EventType.TASK_STEP_STARTED,
             payload={"step_id": step.id, "action": step.action, "tool": step.tool},
             task_id=task.id,
@@ -226,7 +226,7 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
             session_id=session_id,
         )
 
-        await self._bus.publish(JarvisEvent(
+        await self._bus.publish(VoxEvent(
             event_type=EventType.TOOL_REQUESTED,
             payload={
                 "tool": step.tool,
@@ -275,7 +275,7 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
                 }
 
         # 6. Execute tool
-        await self._bus.publish(JarvisEvent(
+        await self._bus.publish(VoxEvent(
             event_type=EventType.TOOL_STARTED,
             payload={"tool": step.tool, "step_id": step.id},
             task_id=task.id,
@@ -287,7 +287,7 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
         tool_result: ToolResult = await tool.execute(validated_args)
 
         event_type = EventType.TOOL_COMPLETED if tool_result.success else EventType.TOOL_FAILED
-        await self._bus.publish(JarvisEvent(
+        await self._bus.publish(VoxEvent(
             event_type=event_type,
             payload={
                 "tool": step.tool,

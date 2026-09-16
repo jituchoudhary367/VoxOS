@@ -68,7 +68,7 @@ class DesktopScreenshotTool(BaseTool):
                 # Save to a temporary file
                 temp_dir = tempfile.gettempdir()
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filepath = os.path.join(temp_dir, f"jarvis_screenshot_{timestamp}.{fmt}")
+                filepath = os.path.join(temp_dir, f"vox_screenshot_{timestamp}.{fmt}")
                 
                 sct_img = sct.grab(monitor)
                 mss.tools.to_png(sct_img.rgb, sct_img.size, output=filepath)

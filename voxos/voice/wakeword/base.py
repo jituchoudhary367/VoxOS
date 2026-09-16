@@ -3,7 +3,8 @@ Abstract base class for Wake Word detection engines.
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Optional
+from collections.abc import Callable
+
 
 class WakeWordDetector(ABC):
     """

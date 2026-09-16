@@ -131,7 +131,7 @@ async def test_missing_file_returns_not_found_status(monkeypatch: pytest.MonkeyP
 
 @pytest.mark.asyncio
 async def test_event_bus_supports_global_subscribers() -> None:
-    from voxos.core.events.bus import EventBus, JarvisEvent
+    from voxos.core.events.bus import EventBus, VoxEvent
     from voxos.core.events.types import EventType
 
     received = []
@@ -141,7 +141,7 @@ async def test_event_bus_supports_global_subscribers() -> None:
 
     bus = EventBus()
     bus.subscribe_all(handler)
-    await bus.publish(JarvisEvent(event_type=EventType.TASK_CREATED))
+    await bus.publish(VoxEvent(event_type=EventType.TASK_CREATED))
 
     assert len(received) == 1
     assert received[0].event_type == EventType.TASK_CREATED

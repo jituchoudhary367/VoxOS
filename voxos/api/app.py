@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
     settings = get_settings()
     log.info(
-        "jarvis_starting",
+        "vox_starting",
         version="0.1.0",
         environment=settings.env,
         debug=settings.debug,
@@ -57,18 +57,18 @@ async def lifespan(app: FastAPI):
     router = get_llm_router()
     log.info("llm_router_ready", provider=router.provider.name)
 
-    log.info("jarvis_ready", tools=registry.tool_count())
+    log.info("vox_ready", tools=registry.tool_count())
 
     yield
 
     # Shutdown
-    log.info("jarvis_shutting_down")
+    log.info("vox_shutting_down")
     try:
         from voxos.core.events.bus import get_event_bus
         await get_event_bus().disconnect()
     except Exception:
         pass
-    log.info("jarvis_stopped")
+    log.info("vox_stopped")
 
 
 def create_app() -> FastAPI:

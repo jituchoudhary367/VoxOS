@@ -23,7 +23,7 @@ HINDI_ROMANIZED_WORDS = {
     "meri", "tum", "aap", "yaha", "waha", "abhi", "kal", "aaj",
     "samay", "time", "kholo", "bandh", "chalao", "dikhao", "lao",
     "nahi", "haan", "thik", "acha", "shukriya", "dhanyawad",
-    "jarvis", "voxos", "bhai", "yar", "dosto",
+    "vox", "voxos", "bhai", "yar", "dosto",
 }
 
 
