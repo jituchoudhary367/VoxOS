@@ -3,7 +3,7 @@ import platform
 import pytest
 from unittest.mock import patch, MagicMock
 
-from voxos.tools.desktop.apps import ListAppsTool, OpenAppTool, CloseAppTool
+from voxos.tools.desktop.apps import CloseAppTool, ListAppsTool, OpenAppArgs, OpenAppTool
 from voxos.tools.desktop.screen import DesktopScreenshotTool
 
 
@@ -20,14 +20,23 @@ async def test_list_apps():
         assert result.data["windows"] == ["Window 1", "Window 2"]
 
 
+def test_open_app_accepts_legacy_planner_argument():
+    """Fallback plans using app_path_or_name remain executable."""
+    args = OpenAppArgs.model_validate({"app_path_or_name": "notepad"})
+
+    assert args.name == "notepad"
+
+
 @pytest.mark.asyncio
 @patch("voxos.tools.desktop.apps.os.startfile", create=True)
 @patch("voxos.tools.desktop.apps.subprocess.Popen")
-async def test_open_app_windows(mock_popen, mock_startfile):
+@patch("voxos.tools.desktop.discovery.get_app_discovery")
+async def test_open_app_windows(mock_get_discovery, mock_popen, mock_startfile):
     # Only test if running on Windows, or mock platform.system
+    mock_get_discovery.return_value.resolve_launch_target.return_value = ("notepad.exe", None)
     with patch("voxos.tools.desktop.apps.platform.system", return_value="Windows"):
         tool = OpenAppTool()
-        result = await tool.execute({"app_path_or_name": "notepad.exe"})
+        result = await tool.execute({"name": "notepad"})
         
         assert result.success is True
         mock_startfile.assert_called_once_with("notepad.exe")
@@ -35,20 +44,23 @@ async def test_open_app_windows(mock_popen, mock_startfile):
 
 @pytest.mark.asyncio
 @patch("voxos.tools.desktop.apps.subprocess.Popen")
-async def test_open_app_mac(mock_popen):
+@patch("voxos.tools.desktop.discovery.get_app_discovery")
+async def test_open_app_mac(mock_get_discovery, mock_popen):
+    mock_get_discovery.return_value.resolve_launch_target.return_value = ("Calculator", None)
     with patch("voxos.tools.desktop.apps.platform.system", return_value="Darwin"):
         tool = OpenAppTool()
-        result = await tool.execute({"app_path_or_name": "Calculator"})
+        result = await tool.execute({"name": "calculator"})
         
         assert result.success is True
-        mock_popen.assert_called_once_with(["open", "Calculator"])
+        mock_popen.assert_called_once_with(["open", "-a", "Calculator"])
 
 
 @pytest.mark.asyncio
 async def test_close_app_success():
     mock_gw = MagicMock()
     mock_window = MagicMock()
-    mock_gw.getWindowsWithTitle.return_value = [mock_window]
+    mock_window.title = "Untitled - Notepad"
+    mock_gw.getAllWindows.return_value = [mock_window]
     
     with patch.dict('sys.modules', {'pygetwindow': mock_gw}):
         tool = CloseAppTool()
@@ -62,7 +74,7 @@ async def test_close_app_success():
 @pytest.mark.asyncio
 async def test_close_app_not_found():
     mock_gw = MagicMock()
-    mock_gw.getWindowsWithTitle.return_value = []
+    mock_gw.getAllWindows.return_value = []
     
     with patch.dict('sys.modules', {'pygetwindow': mock_gw}):
         tool = CloseAppTool()

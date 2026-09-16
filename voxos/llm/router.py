@@ -20,6 +20,8 @@ from enum import Enum
 from functools import lru_cache
 from typing import AsyncIterator
 
+from openai import APIConnectionError, RateLimitError
+
 from voxos.config import get_settings
 from voxos.llm.base import LLMConfig, LLMProvider, LLMMessage, LLMResponse
 from voxos.llm.openai_compat import OpenAICompatibleProvider
@@ -64,7 +66,7 @@ class FallbackProvider(LLMProvider):
     async def complete(self, messages: list[LLMMessage], config: LLMConfig) -> LLMResponse:
         try:
             return await self.primary.complete(messages, config)
-        except Exception as e:
+        except (APIConnectionError, RateLimitError) as e:
             log.warning("primary_llm_failed_using_fallback", error=str(e), fallback=self.fallback.name)
             fallback_config = self._get_fallback_config(config)
             return await self.fallback.complete(messages, fallback_config)
@@ -73,7 +75,7 @@ class FallbackProvider(LLMProvider):
         try:
             async for chunk in self.primary.stream(messages, config):
                 yield chunk
-        except Exception as e:
+        except (APIConnectionError, RateLimitError) as e:
             log.warning("primary_llm_stream_failed_using_fallback", error=str(e), fallback=self.fallback.name)
             fallback_config = self._get_fallback_config(config)
             async for chunk in self.fallback.stream(messages, fallback_config):

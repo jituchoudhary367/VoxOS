@@ -84,6 +84,8 @@ class OpenAppArgs(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def populate_name(cls, data: dict) -> dict:
+        if "app_path_or_name" in data and not data.get("name"):
+            data["name"] = data["app_path_or_name"]
         if "app_name" in data and not data.get("name"):
             data["name"] = data["app_name"]
         if "application" in data and not data.get("name"):

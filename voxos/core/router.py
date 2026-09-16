@@ -108,6 +108,18 @@ AUTOMATION_INTENTS: set[str] = {
     "download_file",
 }
 
+AUTOMATION_INTENT_TO_TOOL: dict[str, str] = {
+    "open_browser": "browser.open",
+    "open_youtube": "browser.open",
+    "search_web_browser": "browser.search",
+    "search_google": "browser.search",
+    "search_wikipedia": "browser.search",
+    "search_youtube": "browser.search",
+    "scroll_page": "browser.scroll",
+    "new_tab": "browser.new_tab",
+    "browser_back": "browser.back",
+}
+
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
@@ -136,11 +148,6 @@ class ExecutionRouter:
         Anything else goes to REASONING.
         """
         if intent in FAST_PATH_INTENT_TO_TOOL and confidence >= 0.80:
-            if intent == "open_application" and entities:
-                app = str(entities.get("application", "") or entities.get("name", "")).lower()
-                # Bypass desktop launcher for web automation or complex media playback
-                if "youtube" in app or "video" in entities or "url" in entities or "search" in entities:
-                    return ExecutionClass.STRATEGIST
             return ExecutionClass.FAST_PATH
 
         if intent in AUTOMATION_INTENTS and confidence >= 0.70:
@@ -151,6 +158,10 @@ class ExecutionRouter:
     def fast_path_tool(self, intent: str) -> str | None:
         """Return the registered tool name for a fast-path intent."""
         return FAST_PATH_INTENT_TO_TOOL.get(intent)
+
+    def automation_tool(self, intent: str) -> str | None:
+        """Return the registered tool for a deterministic browser action."""
+        return AUTOMATION_INTENT_TO_TOOL.get(intent)
 
     def is_fast_path(self, intent: str, confidence: float = 1.0) -> bool:
         return self.route(intent, confidence) == ExecutionClass.FAST_PATH

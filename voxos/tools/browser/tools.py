@@ -56,13 +56,23 @@ async def _get_browser_session() -> "Page":
         )
 
     async with _init_lock:
-        # Reuse existing page if alive
+        # Reuse existing page only while both the page and browser are alive.
         if _page_instance is not None:
             try:
-                _ = _page_instance.url  # Check if page is still alive
-                return _page_instance
+                page_closed = _page_instance.is_closed()
+                browser_connected = (
+                    _browser_instance is not None and _browser_instance.is_connected()
+                )
+                if not page_closed and browser_connected:
+                    return _page_instance
             except Exception:
-                _page_instance = None
+                pass
+            _page_instance = None
+            _context_instance = None
+
+        if _browser_instance is not None and not _browser_instance.is_connected():
+            _browser_instance = None
+            _context_instance = None
 
         if _playwright_context_manager is None:
             _playwright_context_manager = async_playwright()
@@ -126,7 +136,7 @@ class BrowserOpenTool(BaseTool):
     async def _execute(self, args: BrowserOpenArgs) -> ToolResult:
         try:
             url = args.url
-            if not url.startswith("http"):
+            if url != "about:blank" and not url.startswith("http"):
                 url = "https://" + url
 
             page = await _get_browser_session()
@@ -145,6 +155,8 @@ class BrowserOpenTool(BaseTool):
         try:
             page = await _get_browser_session()
             current_url = page.url
+            if args.url == "about:blank" and current_url == "about:blank":
+                return VerificationResult.ok(checks=[{"check": "browser_opened", "passed": True}])
             if current_url and current_url != "about:blank":
                 return VerificationResult.ok(checks=[{"check": "page_loaded", "passed": True, "url": current_url}])
             return VerificationResult.fail("Page URL is blank after navigation")
@@ -158,7 +170,7 @@ class BrowserOpenTool(BaseTool):
 
 class BrowserSearchArgs(BaseModel):
     query: str = Field(..., description="The search query.")
-    engine: str = Field(default="google", description="Search engine: 'google', 'youtube', 'wikipedia', 'bing'")
+    engine: str = Field(default="bing", description="Search engine: 'google', 'youtube', 'wikipedia', 'bing'")
 
 
 class BrowserSearchTool(BaseTool):
@@ -190,13 +202,18 @@ class BrowserSearchTool(BaseTool):
         }
 
         engine = args.engine.lower()
-        url = search_urls.get(engine, search_urls["google"])
+        url = search_urls.get(engine, search_urls["bing"])
 
         try:
             page = await _get_browser_session()
             log.info("browser_search", engine=engine, query=args.query)
             await page.goto(url, wait_until="domcontentloaded", timeout=25000)
             title = await page.title()
+            if engine == "google" and "/sorry/" in page.url:
+                return ToolResult.fail(
+                    "Google blocked this automated search. Try again with Bing.",
+                    "SEARCH_BLOCKED",
+                )
             return ToolResult.ok(data={"title": title, "url": page.url, "engine": engine, "query": args.query})
         except Exception as e:
             log.exception("browser_search_error", query=args.query, error=str(e))
