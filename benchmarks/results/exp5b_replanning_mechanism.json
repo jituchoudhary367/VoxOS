@@ -1,0 +1,2035 @@
+{
+  "environment": {
+    "os": "Windows 11 (build 10.0.26200)",
+    "processor": "Intel(R) Core(TM) Ultra 7 155H",
+    "ram_gb": 15.7,
+    "python": "3.13.5",
+    "llm_provider": "groq",
+    "llm_fast_model": "openai/gpt-oss-20b",
+    "llm_strong_model": "openai/gpt-oss-120b"
+  },
+  "summary": {
+    "fault_runs": 25,
+    "initial_success": 0,
+    "recovery_success": 25,
+    "recovery_failure": 0,
+    "recovery_rate_pct": 100.0,
+    "mean_replans_when_recovered": 1.2,
+    "mean_added_latency_ms": 207.3,
+    "non_retryable_fail_fast": "5/5",
+    "non_retryable_error": [
+      "File not found: C:\\Users\\rotho\\VoxBench\\does_not_exist.txt"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "R1",
+      "scenario": "Transient write fault (1\u00d7)",
+      "expected": "recover",
+      "reps": 5,
+      "control_success": "5/5",
+      "initial_success": 0,
+      "recovery_success": 5,
+      "recovery_failure": 0,
+      "mean_replans": 1.0,
+      "replans_with_failure_context": 5,
+      "alternative_plans": 0,
+      "fault_latency_ms": {
+        "n": 5,
+        "mean": 2.7,
+        "median": 2.6,
+        "stdev": 0.2,
+        "min": 2.6,
+        "max": 2.9
+      },
+      "control_latency_ms": {
+        "n": 5,
+        "mean": 2.9,
+        "median": 2.6,
+        "stdev": 0.7,
+        "min": 2.5,
+        "max": 4.2
+      },
+      "added_latency_ms": -0.2,
+      "failures_passed_example": [
+        "os.write_file: simulated I/O error (device busy)",
+        "Step write execution failed"
+      ],
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.9156999953556806,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.9304999916348606,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.6310000102967024,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.633399999467656,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.636400007759221,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.203699994832277,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.7928999916184694,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.5424000050406903,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.613300006487407,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.454999994370155,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R2",
+      "scenario": "Transient write fault (2\u00d7)",
+      "expected": "recover",
+      "reps": 5,
+      "control_success": "5/5",
+      "initial_success": 0,
+      "recovery_success": 5,
+      "recovery_failure": 0,
+      "mean_replans": 2.0,
+      "replans_with_failure_context": 10,
+      "alternative_plans": 0,
+      "fault_latency_ms": {
+        "n": 5,
+        "mean": 2.8,
+        "median": 2.8,
+        "stdev": 0.1,
+        "min": 2.7,
+        "max": 2.8
+      },
+      "control_latency_ms": {
+        "n": 5,
+        "mean": 2.4,
+        "median": 2.4,
+        "stdev": 0.1,
+        "min": 2.4,
+        "max": 2.5
+      },
+      "added_latency_ms": 0.4,
+      "failures_passed_example": [
+        "os.write_file: simulated I/O error (device busy)",
+        "Step write execution failed"
+      ],
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 2,
+            "faults_injected": 2,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.8357999981381,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 2,
+            "faults_injected": 2,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.7569999947445467,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 2,
+            "faults_injected": 2,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.7192999987164512,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 2,
+            "faults_injected": 2,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.6999999972758815,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 2,
+            "faults_injected": 2,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.7995999989798293,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.511500002583489,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.364200001466088,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.439899995806627,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.4561000027460977,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.4190999974962324,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R3",
+      "scenario": "Transient folder fault in multi-step plan",
+      "expected": "recover",
+      "reps": 5,
+      "control_success": "5/5",
+      "initial_success": 0,
+      "recovery_success": 5,
+      "recovery_failure": 0,
+      "mean_replans": 1.0,
+      "replans_with_failure_context": 5,
+      "alternative_plans": 0,
+      "fault_latency_ms": {
+        "n": 5,
+        "mean": 4.9,
+        "median": 4.7,
+        "stdev": 0.4,
+        "min": 4.5,
+        "max": 5.4
+      },
+      "control_latency_ms": {
+        "n": 5,
+        "mean": 4.5,
+        "median": 4.5,
+        "stdev": 0.1,
+        "min": 4.3,
+        "max": 4.6
+      },
+      "added_latency_ms": 0.4,
+      "failures_passed_example": [
+        "os.create_folder: simulated I/O error (device busy)",
+        "Step mkdir execution failed"
+      ],
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.create_folder: simulated I/O error (device busy)",
+                  "Step mkdir execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.546000011032447,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.create_folder: simulated I/O error (device busy)",
+                  "Step mkdir execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.494699998758733,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.create_folder: simulated I/O error (device busy)",
+                  "Step mkdir execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.71740000648424,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.create_folder: simulated I/O error (device busy)",
+                  "Step mkdir execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 5.4499999969266355,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.create_folder: simulated I/O error (device busy)",
+                  "Step mkdir execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 5.26489999901969,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.477199996472336,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.493600004934706,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.6236999914981425,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.345900000771508,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4.421699995873496,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R4",
+      "scenario": "Transient read fault",
+      "expected": "recover",
+      "reps": 5,
+      "control_success": "5/5",
+      "initial_success": 0,
+      "recovery_success": 5,
+      "recovery_failure": 0,
+      "mean_replans": 1.0,
+      "replans_with_failure_context": 5,
+      "alternative_plans": 0,
+      "fault_latency_ms": {
+        "n": 5,
+        "mean": 2.2,
+        "median": 1.9,
+        "stdev": 0.4,
+        "min": 1.9,
+        "max": 2.7
+      },
+      "control_latency_ms": {
+        "n": 5,
+        "mean": 2.0,
+        "median": 1.9,
+        "stdev": 0.3,
+        "min": 1.7,
+        "max": 2.5
+      },
+      "added_latency_ms": 0.2,
+      "failures_passed_example": [
+        "os.read_file: simulated I/O error (device busy)",
+        "Step read execution failed"
+      ],
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.read_file: simulated I/O error (device busy)",
+                  "Step read execution failed"
+                ],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.7169999957550317,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.read_file: simulated I/O error (device busy)",
+                  "Step read execution failed"
+                ],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.6431000005686656,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.read_file: simulated I/O error (device busy)",
+                  "Step read execution failed"
+                ],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.9325000030221418,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.read_file: simulated I/O error (device busy)",
+                  "Step read execution failed"
+                ],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.905500001157634,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.read_file: simulated I/O error (device busy)",
+                  "Step read execution failed"
+                ],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.8704999965848401,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.477400004863739,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.8583000055514276,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.9161999953212216,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.74459999834653,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.922799987369217,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R5",
+      "scenario": "Persistent write fault (tool unusable)",
+      "expected": "alternative_or_fail",
+      "reps": 5,
+      "control_success": "5/5",
+      "initial_success": 0,
+      "recovery_success": 5,
+      "recovery_failure": 0,
+      "mean_replans": 1.0,
+      "replans_with_failure_context": 5,
+      "alternative_plans": 5,
+      "fault_latency_ms": {
+        "n": 5,
+        "mean": 1038.3,
+        "median": 1037.3,
+        "stdev": 5.1,
+        "min": 1033.3,
+        "max": 1046.1
+      },
+      "control_latency_ms": {
+        "n": 5,
+        "mean": 2.8,
+        "median": 2.8,
+        "stdev": 0.2,
+        "min": 2.5,
+        "max": 3.0
+      },
+      "added_latency_ms": 1035.5,
+      "failures_passed_example": [
+        "os.write_file: simulated I/O error (device busy)",
+        "Step write execution failed"
+      ],
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 1046.1046999989776,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 1033.3399999944959,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 1034.6393999934662,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 1039.9625999998534,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step write execution failed"
+                ],
+                "tools": [
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 1037.270599990734,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.454600005876273,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.7902000001631677,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.8310999914538115,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2.7744999970309436,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 3.0033000075491145,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R6",
+      "scenario": "Non-retryable: file does not exist",
+      "expected": "fail_fast",
+      "reps": 5,
+      "control_success": "n/a",
+      "initial_success": 0,
+      "recovery_success": 0,
+      "recovery_failure": 5,
+      "mean_replans": 0.0,
+      "replans_with_failure_context": 0,
+      "alternative_plans": 0,
+      "fault_latency_ms": {
+        "n": 5,
+        "mean": 1.3,
+        "median": 1.2,
+        "stdev": 0.2,
+        "min": 1.2,
+        "max": 1.6
+      },
+      "control_latency_ms": null,
+      "added_latency_ms": null,
+      "failures_passed_example": null,
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "FAILED",
+            "verified_success": false,
+            "initial_success": false,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.5901000006124377,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": {
+              "reason": "Verification failed",
+              "failures": [
+                "Fatal execution error"
+              ]
+            },
+            "step_errors": [
+              "File not found: C:\\Users\\rotho\\VoxBench\\does_not_exist.txt"
+            ]
+          },
+          {
+            "with_fault": true,
+            "status": "FAILED",
+            "verified_success": false,
+            "initial_success": false,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.2694999895757064,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": {
+              "reason": "Verification failed",
+              "failures": [
+                "Fatal execution error"
+              ]
+            },
+            "step_errors": [
+              "File not found: C:\\Users\\rotho\\VoxBench\\does_not_exist.txt"
+            ]
+          },
+          {
+            "with_fault": true,
+            "status": "FAILED",
+            "verified_success": false,
+            "initial_success": false,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.225600004545413,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": {
+              "reason": "Verification failed",
+              "failures": [
+                "Fatal execution error"
+              ]
+            },
+            "step_errors": [
+              "File not found: C:\\Users\\rotho\\VoxBench\\does_not_exist.txt"
+            ]
+          },
+          {
+            "with_fault": true,
+            "status": "FAILED",
+            "verified_success": false,
+            "initial_success": false,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.190299997688271,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": {
+              "reason": "Verification failed",
+              "failures": [
+                "Fatal execution error"
+              ]
+            },
+            "step_errors": [
+              "File not found: C:\\Users\\rotho\\VoxBench\\does_not_exist.txt"
+            ]
+          },
+          {
+            "with_fault": true,
+            "status": "FAILED",
+            "verified_success": false,
+            "initial_success": false,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1.211499999044463,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 0,
+            "tokens": 0,
+            "rate_limited": 0,
+            "error_info": {
+              "reason": "Verification failed",
+              "failures": [
+                "Fatal execution error"
+              ]
+            },
+            "step_errors": [
+              "File not found: C:\\Users\\rotho\\VoxBench\\does_not_exist.txt"
+            ]
+          }
+        ],
+        "control": []
+      }
+    }
+  ]
+}

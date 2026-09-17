@@ -1,0 +1,400 @@
+{
+  "environment": {
+    "os": "Windows 11 (build 10.0.26200)",
+    "processor": "Intel(R) Core(TM) Ultra 7 155H",
+    "ram_gb": 15.7,
+    "python": "3.13.5",
+    "llm_provider": "groq",
+    "llm_fast_model": "openai/gpt-oss-20b",
+    "llm_strong_model": "openai/gpt-oss-120b"
+  },
+  "summary": {
+    "scenarios": 11,
+    "runs": 55,
+    "dependency_order_respected_pct": 100.0,
+    "independent_pairs_run_concurrently_pct": 100.0,
+    "failure_propagation_correct_pct": 100.0
+  },
+  "scenarios": [
+    {
+      "scenario": "S1 Chain A\u2192B\u2192C",
+      "topology": "A\u2192B\u2192C",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "n/a",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.9,
+        "median": 0.9,
+        "stdev": 0.0,
+        "min": 0.9,
+        "max": 0.9
+      },
+      "sequential_s": 0.9,
+      "speedup_mean": 0.97,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "COMPLETED",
+          "B": "COMPLETED",
+          "C": "COMPLETED"
+        },
+        "executor_failed": [],
+        "executor_skipped": []
+      },
+      "violations": []
+    },
+    {
+      "scenario": "S2 Fan-in A,B\u2192C",
+      "topology": "A\u2192C, B\u2192C",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "5/5",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.6,
+        "median": 0.6,
+        "stdev": 0.0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "sequential_s": 0.9,
+      "speedup_mean": 1.46,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "COMPLETED",
+          "B": "COMPLETED",
+          "C": "COMPLETED"
+        },
+        "executor_failed": [],
+        "executor_skipped": []
+      },
+      "violations": []
+    },
+    {
+      "scenario": "S3 Independent A,B,C",
+      "topology": "A  B  C",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "15/15",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.3,
+        "median": 0.3,
+        "stdev": 0.0,
+        "min": 0.3,
+        "max": 0.3
+      },
+      "sequential_s": 0.9,
+      "speedup_mean": 2.91,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "COMPLETED",
+          "B": "COMPLETED",
+          "C": "COMPLETED"
+        },
+        "executor_failed": [],
+        "executor_skipped": []
+      },
+      "violations": []
+    },
+    {
+      "scenario": "S4 Diamond",
+      "topology": "A\u2192B, A\u2192C, B\u2192D, C\u2192D",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "5/5",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.9,
+        "median": 0.9,
+        "stdev": 0.0,
+        "min": 0.9,
+        "max": 0.9
+      },
+      "sequential_s": 1.2,
+      "speedup_mean": 1.29,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "COMPLETED",
+          "B": "COMPLETED",
+          "C": "COMPLETED",
+          "D": "COMPLETED"
+        },
+        "executor_failed": [],
+        "executor_skipped": []
+      },
+      "violations": []
+    },
+    {
+      "scenario": "S5 Uneven fan-in",
+      "topology": "A(0.2s)\u2192C, B(0.6s)\u2192C",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "5/5",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.9,
+        "median": 0.9,
+        "stdev": 0.0,
+        "min": 0.9,
+        "max": 0.9
+      },
+      "sequential_s": 1.1,
+      "speedup_mean": 1.2,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "COMPLETED",
+          "B": "COMPLETED",
+          "C": "COMPLETED"
+        },
+        "executor_failed": [],
+        "executor_skipped": []
+      },
+      "violations": []
+    },
+    {
+      "scenario": "S6 Wide parallel \u00d78",
+      "topology": "8 independent",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "140/140",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.3,
+        "median": 0.3,
+        "stdev": 0.0,
+        "min": 0.3,
+        "max": 0.3
+      },
+      "sequential_s": 2.4,
+      "speedup_mean": 7.76,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "P0": "COMPLETED",
+          "P1": "COMPLETED",
+          "P2": "COMPLETED",
+          "P3": "COMPLETED",
+          "P4": "COMPLETED",
+          "P5": "COMPLETED",
+          "P6": "COMPLETED",
+          "P7": "COMPLETED"
+        },
+        "executor_failed": [],
+        "executor_skipped": []
+      },
+      "violations": []
+    },
+    {
+      "scenario": "F1 Chain, middle fails",
+      "topology": "A\u2192B\u2717\u2192C",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "n/a",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.6,
+        "median": 0.6,
+        "stdev": 0.0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "sequential_s": 0.6,
+      "speedup_mean": 0.97,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "COMPLETED",
+          "B": "FAILED",
+          "C": "SKIPPED"
+        },
+        "executor_failed": [
+          "B"
+        ],
+        "executor_skipped": [
+          "C"
+        ]
+      },
+      "violations": []
+    },
+    {
+      "scenario": "F2 Fan-in, one branch fails",
+      "topology": "A\u2717\u2192C, B\u2192C",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "5/5",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.3,
+        "median": 0.3,
+        "stdev": 0.0,
+        "min": 0.3,
+        "max": 0.3
+      },
+      "sequential_s": 0.6,
+      "speedup_mean": 1.93,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "FAILED",
+          "B": "COMPLETED",
+          "C": "SKIPPED"
+        },
+        "executor_failed": [
+          "A"
+        ],
+        "executor_skipped": [
+          "C"
+        ]
+      },
+      "violations": []
+    },
+    {
+      "scenario": "F3 Independent, one fails",
+      "topology": "A\u2717  B  C",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "15/15",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.3,
+        "median": 0.3,
+        "stdev": 0.0,
+        "min": 0.3,
+        "max": 0.3
+      },
+      "sequential_s": 0.9,
+      "speedup_mean": 2.92,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "FAILED",
+          "B": "COMPLETED",
+          "C": "COMPLETED"
+        },
+        "executor_failed": [
+          "A"
+        ],
+        "executor_skipped": []
+      },
+      "violations": []
+    },
+    {
+      "scenario": "F4 Transitive skip",
+      "topology": "A\u2717\u2192B\u2192C\u2192D",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "n/a",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.3,
+        "median": 0.3,
+        "stdev": 0.0,
+        "min": 0.3,
+        "max": 0.3
+      },
+      "sequential_s": 0.3,
+      "speedup_mean": 0.97,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "FAILED",
+          "B": "SKIPPED",
+          "C": "SKIPPED",
+          "D": "SKIPPED"
+        },
+        "executor_failed": [
+          "A"
+        ],
+        "executor_skipped": [
+          "B",
+          "C",
+          "D"
+        ]
+      },
+      "violations": []
+    },
+    {
+      "scenario": "F5 Diamond, one arm fails",
+      "topology": "A\u2192B\u2717, A\u2192C, B\u2192D, C\u2192D",
+      "reps": 5,
+      "deps_respected": "5/5",
+      "concurrency": "5/5",
+      "failure_handling": "5/5",
+      "wall_s": {
+        "n": 5,
+        "mean": 0.6,
+        "median": 0.6,
+        "stdev": 0.0,
+        "min": 0.6,
+        "max": 0.6
+      },
+      "sequential_s": 0.9,
+      "speedup_mean": 1.45,
+      "last_run_detail": {
+        "skipped_but_ran": [],
+        "should_skip_not_marked": [],
+        "healthy_not_run": [],
+        "failed_not_marked": [],
+        "status": {
+          "A": "COMPLETED",
+          "B": "FAILED",
+          "C": "COMPLETED",
+          "D": "SKIPPED"
+        },
+        "executor_failed": [
+          "B"
+        ],
+        "executor_skipped": [
+          "D"
+        ]
+      },
+      "violations": []
+    }
+  ]
+}

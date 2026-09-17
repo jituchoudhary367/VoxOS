@@ -1,0 +1,2521 @@
+{
+  "environment": {
+    "os": "Windows 11 (build 10.0.26200)",
+    "processor": "Intel(R) Core(TM) Ultra 7 155H",
+    "ram_gb": 15.7,
+    "python": "3.13.5",
+    "llm_provider": "groq",
+    "llm_fast_model": "openai/gpt-oss-20b",
+    "llm_strong_model": "openai/gpt-oss-120b"
+  },
+  "summary": {
+    "runs": 60,
+    "successful_tasks": 60,
+    "task_success_rate_pct": 100.0,
+    "steps_planned": 84,
+    "steps_completed": 84,
+    "step_completion_rate_pct": 100.0,
+    "false_completions": 0,
+    "tasks_replanned": 7,
+    "replanning_rate_pct": 11.7,
+    "mean_time_s": 1.17,
+    "simple_success_pct": 100.0,
+    "complex_success_pct": 100.0,
+    "by_category": {
+      "Information": "9/9",
+      "File system": "6/6",
+      "File operations": "15/15",
+      "Application": "9/9",
+      "Browser": "6/6",
+      "Multi-step": "9/9",
+      "Parallel": "6/6"
+    },
+    "total_llm_calls": 68,
+    "total_tokens": 99976,
+    "reps": 3,
+    "runs_with_rate_limit": 20,
+    "tasks_successful_all_reps": 20
+  },
+  "per_task": [
+    {
+      "id": "T1",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "What time is it?",
+      "routes": [
+        "FAST_PATH"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 0.91,
+      "rate_limited_runs": 1
+    },
+    {
+      "id": "T2",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "What operating system am I running?",
+      "routes": [
+        "FAST_PATH"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 0.0,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T3",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "How much RAM is being used right now?",
+      "routes": [
+        "FAST_PATH"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 0.11,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T4",
+      "category": "File system",
+      "complexity": "simple",
+      "request": "List files in <WS>",
+      "routes": [
+        "FAST_PATH"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 0.0,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T5",
+      "category": "File system",
+      "complexity": "simple",
+      "request": "Find all .py files in <WS>",
+      "routes": [
+        "FAST_PATH"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 0.0,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T6",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Create a folder called reports in <WS>",
+      "routes": [
+        "FAST_PATH"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 0.0,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T7",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Write a file at <WS>\\todo.txt with the text buy milk",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 3,
+      "false_completions": 0,
+      "mean_time_s": 2.6,
+      "rate_limited_runs": 1
+    },
+    {
+      "id": "T8",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Read the file <WS>\\notes.txt",
+      "routes": [
+        "FAST_PATH",
+        "REASONING"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 1,
+      "false_completions": 0,
+      "mean_time_s": 1.4,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T9",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Copy <WS>\\notes.txt to <WS>\\notes_backup.txt",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 1.66,
+      "rate_limited_runs": 2
+    },
+    {
+      "id": "T10",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Rename <WS>\\report.md to final_report.md",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 3,
+      "false_completions": 0,
+      "mean_time_s": 2.49,
+      "rate_limited_runs": 1
+    },
+    {
+      "id": "T11",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "Open Notepad",
+      "routes": [
+        "FAST_PATH"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 0.59,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T12",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "What applications are currently running?",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 1.42,
+      "rate_limited_runs": 2
+    },
+    {
+      "id": "T13",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "Close Notepad",
+      "routes": [
+        "FAST_PATH"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 0.52,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T14",
+      "category": "Browser",
+      "complexity": "simple",
+      "request": "Open github.com in the browser",
+      "routes": [
+        "AUTOMATION"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 1.26,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T15",
+      "category": "Browser",
+      "complexity": "simple",
+      "request": "Search for Python asyncio tutorial",
+      "routes": [
+        "AUTOMATION"
+      ],
+      "steps_planned_median": 1,
+      "steps": "3/3",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 1.27,
+      "rate_limited_runs": 0
+    },
+    {
+      "id": "T16",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Find the file named sample.csv in <WS> and then read its contents",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 2,
+      "steps": "6/6",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 1.56,
+      "rate_limited_runs": 1
+    },
+    {
+      "id": "T17",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Create a folder named project in <WS>, then create a file readme.txt inside it containing Hello VoxOS, then read the file back",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 3,
+      "steps": "9/9",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 1.82,
+      "rate_limited_runs": 3
+    },
+    {
+      "id": "T18",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Create a folder named archive in <WS> and then copy <WS>\\notes.txt into that archive folder",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 2,
+      "steps": "6/6",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 1.94,
+      "rate_limited_runs": 3
+    },
+    {
+      "id": "T19",
+      "category": "Parallel",
+      "complexity": "complex",
+      "request": "Tell me the current time, my system information, and my RAM usage",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 3,
+      "steps": "9/9",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 2.01,
+      "rate_limited_runs": 3
+    },
+    {
+      "id": "T20",
+      "category": "Parallel",
+      "complexity": "complex",
+      "request": "Create two files in <WS>: a.txt containing alpha and b.txt containing beta",
+      "routes": [
+        "REASONING"
+      ],
+      "steps_planned_median": 3,
+      "steps": "9/9",
+      "success": "3/3",
+      "success_rate_pct": 100.0,
+      "replanned_runs": 0,
+      "false_completions": 0,
+      "mean_time_s": 1.94,
+      "rate_limited_runs": 3
+    }
+  ],
+  "tasks": [
+    {
+      "rep": 0,
+      "id": "T1",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "What time is it?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_current_time",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_time"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.07,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 1,
+        "prompt_tokens": 487,
+        "completion_tokens": 64,
+        "total_tokens": 551,
+        "llm_latency_ms": 1064.4,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T2",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "What operating system am I running?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_system_info",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_info"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T3",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "How much RAM is being used right now?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_resources",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_resources"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.11,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T4",
+      "category": "File system",
+      "complexity": "simple",
+      "request": "List files in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "list_files",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.list_dir"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T5",
+      "category": "File system",
+      "complexity": "simple",
+      "request": "Find all .py files in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "search_files",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.search_files"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T6",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Create a folder called reports in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "create_folder",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.create_folder"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T7",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Write a file at <WS>\\todo.txt with the text buy milk",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.write_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": true,
+      "replans": 1,
+      "approvals": 0,
+      "time_s": 2.33,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 1,
+        "calls": 3,
+        "prompt_tokens": 4663,
+        "completion_tokens": 401,
+        "total_tokens": 5064,
+        "llm_latency_ms": 2320.8,
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T8",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Read the file <WS>\\notes.txt",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "read_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": true,
+      "replans": 1,
+      "approvals": 0,
+      "time_s": 2.39,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 3,
+        "prompt_tokens": 4631,
+        "completion_tokens": 328,
+        "total_tokens": 4959,
+        "llm_latency_ms": 2390.2,
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T9",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Copy <WS>\\notes.txt to <WS>\\notes_backup.txt",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.copy_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.49,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 2,
+        "prompt_tokens": 2567,
+        "completion_tokens": 366,
+        "total_tokens": 2933,
+        "llm_latency_ms": 1488.4,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T10",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Rename <WS>\\report.md to final_report.md",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "move_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.rename_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": true,
+      "replans": 1,
+      "approvals": 0,
+      "time_s": 2.28,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 3,
+        "prompt_tokens": 4679,
+        "completion_tokens": 472,
+        "total_tokens": 5151,
+        "llm_latency_ms": 2272.2,
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T11",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "Open Notepad",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "open_application",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.open_app"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.61,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T12",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "What applications are currently running?",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "list_applications",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.list_apps"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.46,
+      "throttle_wait_s": 3.51,
+      "llm": {
+        "rate_limit_wait_ms": 3505.8,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2486,
+        "completion_tokens": 176,
+        "total_tokens": 2662,
+        "llm_latency_ms": 4959.1,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T13",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "Close Notepad",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "close_application",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.close_app"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.52,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T14",
+      "category": "Browser",
+      "complexity": "simple",
+      "request": "Open github.com in the browser",
+      "execution_class": "AUTOMATION",
+      "escalated_from": null,
+      "intent": "open_browser",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "browser.open"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.03,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T15",
+      "category": "Browser",
+      "complexity": "simple",
+      "request": "Search for Python asyncio tutorial",
+      "execution_class": "AUTOMATION",
+      "escalated_from": null,
+      "intent": "search_web_browser",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "browser.search"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.64,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T16",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Find the file named sample.csv in <WS> and then read its contents",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "read_file",
+      "steps_planned": 2,
+      "steps_completed": 2,
+      "tools": [
+        "os.search_files",
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.22,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 2,
+        "prompt_tokens": 2534,
+        "completion_tokens": 277,
+        "total_tokens": 2811,
+        "llm_latency_ms": 2218.1,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T17",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Create a folder named project in <WS>, then create a file readme.txt inside it containing Hello VoxOS, then read the file back",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "os.create_folder",
+        "os.write_file",
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.81,
+      "throttle_wait_s": 14.51,
+      "llm": {
+        "rate_limit_wait_ms": 14506.1,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2590,
+        "completion_tokens": 598,
+        "total_tokens": 3188,
+        "llm_latency_ms": 16299.5,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T18",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Create a folder named archive in <WS> and then copy <WS>\\notes.txt into that archive folder",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 2,
+      "steps_completed": 2,
+      "tools": [
+        "os.create_folder",
+        "os.copy_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.62,
+      "throttle_wait_s": 18.01,
+      "llm": {
+        "rate_limit_wait_ms": 18012.9,
+        "rate_limited": 2,
+        "calls": 2,
+        "prompt_tokens": 2581,
+        "completion_tokens": 465,
+        "total_tokens": 3046,
+        "llm_latency_ms": 19629.4,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T19",
+      "category": "Parallel",
+      "complexity": "complex",
+      "request": "Tell me the current time, my system information, and my RAM usage",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "get_system_info",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "system.get_time",
+        "system.get_info",
+        "system.get_resources"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.59,
+      "throttle_wait_s": 3.5,
+      "llm": {
+        "rate_limit_wait_ms": 3501.5,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2502,
+        "completion_tokens": 372,
+        "total_tokens": 2874,
+        "llm_latency_ms": 4984.8,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 0,
+      "id": "T20",
+      "category": "Parallel",
+      "complexity": "complex",
+      "request": "Create two files in <WS>: a.txt containing alpha and b.txt containing beta",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "os.create_folder",
+        "os.write_file",
+        "os.write_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.02,
+      "throttle_wait_s": 14.51,
+      "llm": {
+        "rate_limit_wait_ms": 14511.2,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2566,
+        "completion_tokens": 384,
+        "total_tokens": 2950,
+        "llm_latency_ms": 16525.0,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T1",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "What time is it?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_current_time",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_time"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.67,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 1,
+        "prompt_tokens": 487,
+        "completion_tokens": 61,
+        "total_tokens": 548,
+        "llm_latency_ms": 672.2,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T2",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "What operating system am I running?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_system_info",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_info"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T3",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "How much RAM is being used right now?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_resources",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_resources"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.11,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T4",
+      "category": "File system",
+      "complexity": "simple",
+      "request": "List files in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "list_files",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.list_dir"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T5",
+      "category": "File system",
+      "complexity": "simple",
+      "request": "Find all .py files in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "search_files",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.search_files"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T6",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Create a folder called reports in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "create_folder",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.create_folder"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T7",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Write a file at <WS>\\todo.txt with the text buy milk",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.write_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": true,
+      "replans": 1,
+      "approvals": 0,
+      "time_s": 2.79,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 3,
+        "prompt_tokens": 4663,
+        "completion_tokens": 375,
+        "total_tokens": 5038,
+        "llm_latency_ms": 2784.5,
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T8",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Read the file <WS>\\notes.txt",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "read_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.72,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 1,
+        "prompt_tokens": 498,
+        "completion_tokens": 74,
+        "total_tokens": 572,
+        "llm_latency_ms": 710.1,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T9",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Copy <WS>\\notes.txt to <WS>\\notes_backup.txt",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.copy_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.67,
+      "throttle_wait_s": 10.51,
+      "llm": {
+        "rate_limit_wait_ms": 10509.6,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2567,
+        "completion_tokens": 372,
+        "total_tokens": 2939,
+        "llm_latency_ms": 12179.2,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T10",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Rename <WS>\\report.md to final_report.md",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "move_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.rename_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": true,
+      "replans": 1,
+      "approvals": 0,
+      "time_s": 2.62,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 3,
+        "prompt_tokens": 4679,
+        "completion_tokens": 549,
+        "total_tokens": 5228,
+        "llm_latency_ms": 2614.8,
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T11",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "Open Notepad",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "open_application",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.open_app"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.58,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T12",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "What applications are currently running?",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "list_applications",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.list_apps"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.47,
+      "throttle_wait_s": 11.5,
+      "llm": {
+        "rate_limit_wait_ms": 11503.4,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2486,
+        "completion_tokens": 173,
+        "total_tokens": 2659,
+        "llm_latency_ms": 12966.6,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T13",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "Close Notepad",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "close_application",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.close_app"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.51,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T14",
+      "category": "Browser",
+      "complexity": "simple",
+      "request": "Open github.com in the browser",
+      "execution_class": "AUTOMATION",
+      "escalated_from": null,
+      "intent": "open_browser",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "browser.open"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.88,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T15",
+      "category": "Browser",
+      "complexity": "simple",
+      "request": "Search for Python asyncio tutorial",
+      "execution_class": "AUTOMATION",
+      "escalated_from": null,
+      "intent": "search_web_browser",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "browser.search"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.61,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T16",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Find the file named sample.csv in <WS> and then read its contents",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "read_file",
+      "steps_planned": 2,
+      "steps_completed": 2,
+      "tools": [
+        "os.search_files",
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.44,
+      "throttle_wait_s": 1.51,
+      "llm": {
+        "rate_limit_wait_ms": 1513.2,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2534,
+        "completion_tokens": 295,
+        "total_tokens": 2829,
+        "llm_latency_ms": 2946.4,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T17",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Create a folder named project in <WS>, then create a file readme.txt inside it containing Hello VoxOS, then read the file back",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "os.create_folder",
+        "os.write_file",
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.52,
+      "throttle_wait_s": 4.5,
+      "llm": {
+        "rate_limit_wait_ms": 4504.8,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2590,
+        "completion_tokens": 610,
+        "total_tokens": 3200,
+        "llm_latency_ms": 6017.0,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T18",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Create a folder named archive in <WS> and then copy <WS>\\notes.txt into that archive folder",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 2,
+      "steps_completed": 2,
+      "tools": [
+        "os.create_folder",
+        "os.copy_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.12,
+      "throttle_wait_s": 5.5,
+      "llm": {
+        "rate_limit_wait_ms": 5500.3,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2581,
+        "completion_tokens": 491,
+        "total_tokens": 3072,
+        "llm_latency_ms": 7611.9,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T19",
+      "category": "Parallel",
+      "complexity": "complex",
+      "request": "Tell me the current time, my system information, and my RAM usage",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "get_system_info",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "system.get_time",
+        "system.get_info",
+        "system.get_resources"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.92,
+      "throttle_wait_s": 15.51,
+      "llm": {
+        "rate_limit_wait_ms": 15505.1,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2502,
+        "completion_tokens": 375,
+        "total_tokens": 2877,
+        "llm_latency_ms": 17313.3,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 1,
+      "id": "T20",
+      "category": "Parallel",
+      "complexity": "complex",
+      "request": "Create two files in <WS>: a.txt containing alpha and b.txt containing beta",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "os.create_folder",
+        "os.write_file",
+        "os.write_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.63,
+      "throttle_wait_s": 16.5,
+      "llm": {
+        "rate_limit_wait_ms": 16501.7,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2565,
+        "completion_tokens": 382,
+        "total_tokens": 2947,
+        "llm_latency_ms": 18118.5,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T1",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "What time is it?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_current_time",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_time"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.98,
+      "throttle_wait_s": 1.51,
+      "llm": {
+        "rate_limit_wait_ms": 1510.8,
+        "rate_limited": 1,
+        "calls": 1,
+        "prompt_tokens": 487,
+        "completion_tokens": 64,
+        "total_tokens": 551,
+        "llm_latency_ms": 2485.2,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T2",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "What operating system am I running?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_system_info",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_info"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T3",
+      "category": "Information",
+      "complexity": "simple",
+      "request": "How much RAM is being used right now?",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "get_resources",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "system.get_resources"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.11,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T4",
+      "category": "File system",
+      "complexity": "simple",
+      "request": "List files in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "list_files",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.list_dir"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T5",
+      "category": "File system",
+      "complexity": "simple",
+      "request": "Find all .py files in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "search_files",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.search_files"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T6",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Create a folder called reports in <WS>",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "create_folder",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.create_folder"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.0,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T7",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Write a file at <WS>\\todo.txt with the text buy milk",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.write_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": true,
+      "replans": 1,
+      "approvals": 0,
+      "time_s": 2.69,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 3,
+        "prompt_tokens": 4663,
+        "completion_tokens": 371,
+        "total_tokens": 5034,
+        "llm_latency_ms": 2681.2,
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T8",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Read the file <WS>\\notes.txt",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "read_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.08,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 1,
+        "prompt_tokens": 498,
+        "completion_tokens": 74,
+        "total_tokens": 572,
+        "llm_latency_ms": 1081.0,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T9",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Copy <WS>\\notes.txt to <WS>\\notes_backup.txt",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.copy_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.81,
+      "throttle_wait_s": 6.51,
+      "llm": {
+        "rate_limit_wait_ms": 6508.0,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2567,
+        "completion_tokens": 368,
+        "total_tokens": 2935,
+        "llm_latency_ms": 8311.0,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T10",
+      "category": "File operations",
+      "complexity": "simple",
+      "request": "Rename <WS>\\report.md to final_report.md",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "move_file",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "os.rename_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": true,
+      "replans": 1,
+      "approvals": 0,
+      "time_s": 2.56,
+      "throttle_wait_s": 16.52,
+      "llm": {
+        "rate_limit_wait_ms": 16515.1,
+        "rate_limited": 1,
+        "calls": 3,
+        "prompt_tokens": 4679,
+        "completion_tokens": 557,
+        "total_tokens": 5236,
+        "llm_latency_ms": 19069.3,
+        "models": [
+          "openai/gpt-oss-120b",
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T11",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "Open Notepad",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "open_application",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.open_app"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.58,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T12",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "What applications are currently running?",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "list_applications",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.list_apps"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.32,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 2,
+        "prompt_tokens": 2486,
+        "completion_tokens": 173,
+        "total_tokens": 2659,
+        "llm_latency_ms": 1319.0,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T13",
+      "category": "Application",
+      "complexity": "simple",
+      "request": "Close Notepad",
+      "execution_class": "FAST_PATH",
+      "escalated_from": null,
+      "intent": "close_application",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "desktop.close_app"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.52,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T14",
+      "category": "Browser",
+      "complexity": "simple",
+      "request": "Open github.com in the browser",
+      "execution_class": "AUTOMATION",
+      "escalated_from": null,
+      "intent": "open_browser",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "browser.open"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.87,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T15",
+      "category": "Browser",
+      "complexity": "simple",
+      "request": "Search for Python asyncio tutorial",
+      "execution_class": "AUTOMATION",
+      "escalated_from": null,
+      "intent": "search_web_browser",
+      "steps_planned": 1,
+      "steps_completed": 1,
+      "tools": [
+        "browser.search"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 0.56,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "llm_latency_ms": 0.0,
+        "models": []
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T16",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Find the file named sample.csv in <WS> and then read its contents",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "read_file",
+      "steps_planned": 2,
+      "steps_completed": 2,
+      "tools": [
+        "os.search_files",
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 1.02,
+      "throttle_wait_s": 0.0,
+      "llm": {
+        "rate_limit_wait_ms": 0.0,
+        "rate_limited": 0,
+        "calls": 2,
+        "prompt_tokens": 2534,
+        "completion_tokens": 271,
+        "total_tokens": 2805,
+        "llm_latency_ms": 1016.7,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T17",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Create a folder named project in <WS>, then create a file readme.txt inside it containing Hello VoxOS, then read the file back",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "os.create_folder",
+        "os.write_file",
+        "os.read_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.14,
+      "throttle_wait_s": 4.5,
+      "llm": {
+        "rate_limit_wait_ms": 4503.4,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2590,
+        "completion_tokens": 604,
+        "total_tokens": 3194,
+        "llm_latency_ms": 6634.9,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T18",
+      "category": "Multi-step",
+      "complexity": "complex",
+      "request": "Create a folder named archive in <WS> and then copy <WS>\\notes.txt into that archive folder",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 2,
+      "steps_completed": 2,
+      "tools": [
+        "os.create_folder",
+        "os.copy_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.09,
+      "throttle_wait_s": 7.51,
+      "llm": {
+        "rate_limit_wait_ms": 7509.0,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2581,
+        "completion_tokens": 478,
+        "total_tokens": 3059,
+        "llm_latency_ms": 9594.1,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T19",
+      "category": "Parallel",
+      "complexity": "complex",
+      "request": "Tell me the current time, my system information, and my RAM usage",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "get_system_info",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "system.get_time",
+        "system.get_info",
+        "system.get_resources"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.51,
+      "throttle_wait_s": 12.51,
+      "llm": {
+        "rate_limit_wait_ms": 12514.1,
+        "rate_limited": 1,
+        "calls": 2,
+        "prompt_tokens": 2502,
+        "completion_tokens": 375,
+        "total_tokens": 2877,
+        "llm_latency_ms": 14910.7,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    },
+    {
+      "rep": 2,
+      "id": "T20",
+      "category": "Parallel",
+      "complexity": "complex",
+      "request": "Create two files in <WS>: a.txt containing alpha and b.txt containing beta",
+      "execution_class": "REASONING",
+      "escalated_from": null,
+      "intent": "create_file",
+      "steps_planned": 3,
+      "steps_completed": 3,
+      "tools": [
+        "os.create_folder",
+        "os.write_file",
+        "os.write_file"
+      ],
+      "pipeline_status": "COMPLETED",
+      "verified_success": true,
+      "false_completion": false,
+      "replanned": false,
+      "replans": 0,
+      "approvals": 0,
+      "time_s": 2.16,
+      "throttle_wait_s": 15.02,
+      "llm": {
+        "rate_limit_wait_ms": 15023.2,
+        "rate_limited": 2,
+        "calls": 2,
+        "prompt_tokens": 2566,
+        "completion_tokens": 390,
+        "total_tokens": 2956,
+        "llm_latency_ms": 17175.9,
+        "models": [
+          "openai/gpt-oss-20b"
+        ]
+      },
+      "errors": null
+    }
+  ]
+}

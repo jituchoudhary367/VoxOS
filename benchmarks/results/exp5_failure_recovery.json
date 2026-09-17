@@ -1,0 +1,1018 @@
+{
+  "environment": {
+    "os": "Windows 11 (build 10.0.26200)",
+    "processor": "Intel(R) Core(TM) Ultra 7 155H",
+    "ram_gb": 15.7,
+    "python": "3.13.5",
+    "llm_provider": "groq",
+    "llm_fast_model": "openai/gpt-oss-20b",
+    "llm_strong_model": "openai/gpt-oss-120b"
+  },
+  "summary": {
+    "fault_runs": 10,
+    "initial_success": 0,
+    "recovery_success": 10,
+    "recovery_failure": 0,
+    "recovery_rate_pct": 100.0,
+    "transient_fault_recovery_rate_pct": 100.0,
+    "mean_replans_when_recovered": 1.5,
+    "mean_added_latency_ms": 1361.5,
+    "non_retryable_fail_fast_correct": "2/2"
+  },
+  "scenarios": [
+    {
+      "id": "R1",
+      "scenario": "Transient write fault (1\u00d7)",
+      "expected": "recover",
+      "reps": 2,
+      "control_success": "2/2",
+      "initial_success": 0,
+      "recovery_success": 2,
+      "recovery_failure": 0,
+      "mean_replans": 1.0,
+      "alternative_plans": 1,
+      "fault_latency_ms": {
+        "n": 2,
+        "mean": 2182.7,
+        "median": 2182.7,
+        "stdev": 387.5,
+        "min": 1908.7,
+        "max": 2456.7
+      },
+      "control_latency_ms": {
+        "n": 2,
+        "mean": 1467.7,
+        "median": 1467.7,
+        "stdev": 898.7,
+        "min": 832.3,
+        "max": 2103.2
+      },
+      "added_latency_ms": 1076.4,
+      "rate_limited_runs": 2,
+      "mean_llm_calls_fault": 2.0,
+      "mean_llm_calls_control": 1.0,
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 2456.6646000166656,
+            "throttle_wait_ms": 9512.4,
+            "llm_calls": 2,
+            "tokens": 4581,
+            "rate_limited": 1,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 1908.674099991913,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 2,
+            "tokens": 4484,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2103.2037000113633,
+            "throttle_wait_ms": 1515.4,
+            "llm_calls": 1,
+            "tokens": 2190,
+            "rate_limited": 2,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 832.2921999933897,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 1,
+            "tokens": 2191,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R2",
+      "scenario": "Transient write fault (2\u00d7)",
+      "expected": "recover",
+      "reps": 2,
+      "control_success": "2/2",
+      "initial_success": 0,
+      "recovery_success": 2,
+      "recovery_failure": 0,
+      "mean_replans": 1.5,
+      "alternative_plans": 2,
+      "fault_latency_ms": {
+        "n": 2,
+        "mean": 3241.3,
+        "median": 3241.3,
+        "stdev": 1370.4,
+        "min": 2272.3,
+        "max": 4210.3
+      },
+      "control_latency_ms": {
+        "n": 2,
+        "mean": 787.6,
+        "median": 787.6,
+        "stdev": 56.4,
+        "min": 747.6,
+        "max": 827.5
+      },
+      "added_latency_ms": 1524.7,
+      "rate_limited_runs": 2,
+      "mean_llm_calls_fault": 2.5,
+      "mean_llm_calls_control": 1.0,
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 2,
+            "faults_injected": 2,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_2 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 4210.283700012951,
+            "throttle_wait_ms": 9512.6,
+            "llm_calls": 3,
+            "tokens": 6874,
+            "rate_limited": 1,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 2272.252800001297,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 2,
+            "tokens": 4565,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 747.6495999871986,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 1,
+            "tokens": 2190,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 827.4604000034742,
+            "throttle_wait_ms": 6502.5,
+            "llm_calls": 1,
+            "tokens": 2192,
+            "rate_limited": 1,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R3",
+      "scenario": "Transient folder fault in multi-step plan",
+      "expected": "recover",
+      "reps": 2,
+      "control_success": "2/2",
+      "initial_success": 0,
+      "recovery_success": 2,
+      "recovery_failure": 0,
+      "mean_replans": 1.0,
+      "alternative_plans": 1,
+      "fault_latency_ms": {
+        "n": 2,
+        "mean": 3424.2,
+        "median": 3424.2,
+        "stdev": 1090.9,
+        "min": 2652.8,
+        "max": 4195.7
+      },
+      "control_latency_ms": {
+        "n": 2,
+        "mean": 1408.2,
+        "median": 1408.2,
+        "stdev": 230.2,
+        "min": 1245.5,
+        "max": 1571.0
+      },
+      "added_latency_ms": null,
+      "rate_limited_runs": 4,
+      "mean_llm_calls_fault": 2.0,
+      "mean_llm_calls_control": 1.0,
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.create_folder: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.shell_command",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 2652.81810000306,
+            "throttle_wait_ms": 9503.3,
+            "llm_calls": 2,
+            "tokens": 4659,
+            "rate_limited": 1,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.create_folder: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 4195.651400004863,
+            "throttle_wait_ms": 8510.9,
+            "llm_calls": 2,
+            "tokens": 4527,
+            "rate_limited": 1,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 1245.4782999993768,
+            "throttle_wait_ms": 3505.2,
+            "llm_calls": 1,
+            "tokens": 2234,
+            "rate_limited": 1,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 1571.0128999926383,
+            "throttle_wait_ms": 8506.6,
+            "llm_calls": 1,
+            "tokens": 2234,
+            "rate_limited": 1,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R4",
+      "scenario": "Transient read fault",
+      "expected": "recover",
+      "reps": 2,
+      "control_success": "2/2",
+      "initial_success": 0,
+      "recovery_success": 2,
+      "recovery_failure": 0,
+      "mean_replans": 2.0,
+      "alternative_plans": 0,
+      "fault_latency_ms": {
+        "n": 2,
+        "mean": 2823.6,
+        "median": 2823.6,
+        "stdev": 181.4,
+        "min": 2695.3,
+        "max": 2951.9
+      },
+      "control_latency_ms": {
+        "n": 2,
+        "mean": 2427.4,
+        "median": 2427.4,
+        "stdev": 675.9,
+        "min": 1949.5,
+        "max": 2905.3
+      },
+      "added_latency_ms": 396.2,
+      "rate_limited_runs": 0,
+      "mean_llm_calls_fault": 3.0,
+      "mean_llm_calls_control": 2.0,
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 2,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "Argument validation failed: 1 validation error for ReadFileArgs\nfile_path\n  Field required [type=missing, input_value={'path': 'C:\\\\\\\\Users\\\\\\\\...\\VoxBench\\\\\\\\notes.txt'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.read_file: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.copy_file",
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 2951.885599992238,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 3,
+            "tokens": 6760,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 2,
+            "faults_injected": 1,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "Argument validation failed: 1 validation error for ReadFileArgs\nfile_path\n  Field required [type=missing, input_value={'path': 'C:\\\\\\\\Users\\\\\\\\...\\VoxBench\\\\\\\\notes.txt'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.read_file: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.copy_file",
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 2695.303500004229,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 3,
+            "tokens": 6743,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "Argument validation failed: 1 validation error for ReadFileArgs\nfile_path\n  Field required [type=missing, input_value={'path': 'C:\\\\\\\\Users\\\\\\\\...\\VoxBench\\\\\\\\notes.txt'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.read_file",
+                  null
+                ]
+              }
+            ],
+            "latency_ms": 1949.511099999654,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 2,
+            "tokens": 4467,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "Argument validation failed: 1 validation error for ReadFileArgs\nfile_path\n  Field required [type=missing, input_value={'path': 'C:\\\\\\\\Users\\\\\\\\...\\VoxBench\\\\\\\\notes.txt'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 2905.3298000071663,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 2,
+            "tokens": 4409,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R5",
+      "scenario": "Persistent write fault (tool unusable)",
+      "expected": "alternative_or_fail",
+      "reps": 2,
+      "control_success": "2/2",
+      "initial_success": 0,
+      "recovery_success": 2,
+      "recovery_failure": 0,
+      "mean_replans": 2.0,
+      "alternative_plans": 2,
+      "fault_latency_ms": {
+        "n": 2,
+        "mean": 3302.7,
+        "median": 3302.7,
+        "stdev": 932.9,
+        "min": 2643.0,
+        "max": 3962.4
+      },
+      "control_latency_ms": {
+        "n": 2,
+        "mean": 853.9,
+        "median": 853.9,
+        "stdev": 16.7,
+        "min": 842.1,
+        "max": 865.7
+      },
+      "added_latency_ms": 2448.8,
+      "rate_limited_runs": 0,
+      "mean_llm_calls_fault": 3.0,
+      "mean_llm_calls_control": 1.0,
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 3,
+            "faults_injected": 3,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_2 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_2 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 3962.4045999953523,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 4,
+            "tokens": 9218,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": true,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": false,
+            "recovered": true,
+            "replans": 1,
+            "faults_injected": 1,
+            "alternative_plan": true,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              },
+              {
+                "replan": true,
+                "failures_given": [
+                  "os.write_file: simulated I/O error (device busy)",
+                  "Step step_1 execution failed"
+                ],
+                "tools": [
+                  "os.create_folder",
+                  "os.shell_command"
+                ]
+              }
+            ],
+            "latency_ms": 2643.0351000017254,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 2,
+            "tokens": 4536,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ],
+        "control": [
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 842.0613000052981,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 1,
+            "tokens": 2183,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          },
+          {
+            "with_fault": false,
+            "status": "COMPLETED",
+            "verified_success": true,
+            "initial_success": true,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.write_file"
+                ]
+              }
+            ],
+            "latency_ms": 865.7123000011779,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 1,
+            "tokens": 2183,
+            "rate_limited": 0,
+            "error_info": null,
+            "step_errors": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "R6",
+      "scenario": "Non-retryable: file does not exist",
+      "expected": "fail_fast",
+      "reps": 2,
+      "control_success": "n/a",
+      "initial_success": 0,
+      "recovery_success": 0,
+      "recovery_failure": 2,
+      "mean_replans": 0.0,
+      "alternative_plans": 0,
+      "fault_latency_ms": {
+        "n": 2,
+        "mean": 1157.6,
+        "median": 1157.6,
+        "stdev": 558.3,
+        "min": 762.8,
+        "max": 1552.4
+      },
+      "control_latency_ms": null,
+      "added_latency_ms": null,
+      "rate_limited_runs": 1,
+      "mean_llm_calls_fault": 1.0,
+      "mean_llm_calls_control": null,
+      "runs": {
+        "fault": [
+          {
+            "with_fault": true,
+            "status": "FAILED",
+            "verified_success": false,
+            "initial_success": false,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 1552.3819000081858,
+            "throttle_wait_ms": 3504.3,
+            "llm_calls": 1,
+            "tokens": 2245,
+            "rate_limited": 1,
+            "error_info": {
+              "reason": "Verification failed",
+              "failures": [
+                "Fatal execution error"
+              ]
+            },
+            "step_errors": [
+              "File not found: C:\\\\Users\\\\rotho\\\\VoxBench\\\\does_not_exist.txt"
+            ]
+          },
+          {
+            "with_fault": true,
+            "status": "FAILED",
+            "verified_success": false,
+            "initial_success": false,
+            "recovered": false,
+            "replans": 0,
+            "faults_injected": 0,
+            "alternative_plan": false,
+            "plans": [
+              {
+                "replan": false,
+                "failures_given": [],
+                "tools": [
+                  "os.read_file"
+                ]
+              }
+            ],
+            "latency_ms": 762.8473000077065,
+            "throttle_wait_ms": 0.0,
+            "llm_calls": 1,
+            "tokens": 2212,
+            "rate_limited": 0,
+            "error_info": {
+              "reason": "Verification failed",
+              "failures": [
+                "Fatal execution error"
+              ]
+            },
+            "step_errors": [
+              "File not found: C:\\\\Users\\\\rotho\\\\VoxBench\\\\does_not_exist.txt"
+            ]
+          }
+        ],
+        "control": []
+      }
+    }
+  ]
+}
