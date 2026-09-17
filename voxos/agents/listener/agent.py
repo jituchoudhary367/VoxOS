@@ -52,6 +52,9 @@ class ListenerOutput(BaseModel):
     clarification_needed: bool = False
     clarification_question: str | None = None
     raw_text: str = ""
+    # "rules" when the deterministic classifier matched; "llm" otherwise. The
+    # router trusts rule matches for the fast path but checks LLM guesses.
+    source: str = "llm"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -164,7 +167,9 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
             response_format={"type": "json_object"},
             system_prompt=SYSTEM_PROMPT,
             temperature=0.0,  # Deterministic classification
-            max_tokens=256,
+            # Reasoning models (gpt-oss) spend ~500 hidden tokens before the
+            # JSON; a 256 cap truncates to empty and Groq rejects the call.
+            max_tokens=1024,
         )
 
         try:
@@ -198,12 +203,27 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
         Deterministic fast-path for common patterns.
         Avoids an LLM call for simple, obvious requests (Class A intents).
         """
+        result = ListenerAgent._rule_classify(text)
+        if result is not None:
+            result.source = "rules"
+            result.raw_text = text
+        return result
+
+    @staticmethod
+    def _rule_classify(text: str) -> ListenerOutput | None:
         import re
-        from pathlib import Path
 
         text_lower = text.lower().strip()
-        
+
         text_clean = re.sub(r'[^\w\s]', '', text_lower)  # strip punctuation
+        # Paths and domains need their punctuation. `text_raw` keeps case for
+        # captured values; `text_lp` is the same string lower-cased, so match
+        # spans line up between the two.
+        text_raw = text.strip().rstrip("?!.").strip()
+        text_lp = text_raw.lower()
+
+        def raw_group(match: re.Match, group: int) -> str:
+            return text_raw[match.start(group):match.end(group)].strip().strip("'\"")
 
         # ── Deterministic browser actions ────────────────────────────────────
         if text_clean in {"open browser", "open the browser", "launch browser"}:
@@ -271,9 +291,11 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
                                   entities={}, requires_execution=True, confidence=1.0)
 
         # ── System Info ───────────────────────────────────────────────────────
+        # Word boundaries matter: without them "close", "choose" and any path
+        # containing "os" were classified as system-info requests.
         SYS_INFO_PATTERNS = [
-            r"(?:what(?:'s| is)(?: my)? )?(?:os|operating system|hostname|computer name|uptime|system info)",
-            r"about (?:this )?(?:computer|system|pc|laptop)",
+            r"\b(?:os|operating system|hostname|computer name|uptime|system info(?:rmation)?)\b",
+            r"\babout (?:this )?(?:computer|system|pc|laptop)\b",
         ]
         if any(re.search(p, text_clean) for p in SYS_INFO_PATTERNS):
             return ListenerOutput(intent="get_system_info", language="en",
@@ -300,6 +322,25 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
         if any(re.search(p, text_clean) for p in SCREENSHOT_PATTERNS):
             return ListenerOutput(intent="take_screenshot", language="en",
                                   entities={}, requires_execution=True, confidence=1.0)
+
+        # ── Open a website ────────────────────────────────────────────────────
+        # Before the app launcher, which would otherwise try to launch an
+        # application called "github.com in the browser".
+        m = re.match(
+            r"^(?:please\s+)?(?:open|go to|visit|browse to|navigate to)\s+(?:the\s+)?(?:website\s+|site\s+)?"
+            r"(https?://\S+|(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.([a-z]{2,24})(?:/\S*)?)"
+            r"(?:\s+(?:in|on|using|with)\s+(?:the\s+|my\s+)?(?:browser|chrome|edge|firefox|web browser))?$",
+            text_lp,
+        )
+        FILE_EXTENSIONS = {"txt", "py", "md", "csv", "pdf", "doc", "docx", "xls", "xlsx", "json", "log",
+                           "exe", "png", "jpg", "jpeg", "gif", "zip", "html", "js", "ts", "ppt", "pptx", "ini"}
+        if m and (m.group(1).startswith("http") or m.group(2) not in FILE_EXTENSIONS):
+            url = raw_group(m, 1)
+            if not url.lower().startswith(("http://", "https://")):
+                url = f"https://{url}"
+            return ListenerOutput(intent="open_browser", language="en",
+                                  entities={"url": url},
+                                  requires_execution=True, confidence=0.95)
 
         # ── Open Application ──────────────────────────────────────────────────
         OPEN_APP_REGEX = re.compile(
@@ -364,34 +405,44 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
                                       entities={"dir_path": folder},
                                       requires_execution=True, confidence=0.95)
 
-        m = re.search(r"(?:list|show)(?: all)? files?(?:\s+in|\s+inside|\s+from|\s+at)\s+(.+)", text_clean)
+        m = re.search(r"(?:list|show)(?: all)? files?(?:\s+in|\s+inside|\s+from|\s+at)\s+(.+)", text_lp)
         if m:
             return ListenerOutput(intent="list_files", language="en",
-                                  entities={"dir_path": m.group(1).strip()},
+                                  entities={"dir_path": raw_group(m, 1)},
                                   requires_execution=True, confidence=0.85)
 
         # ── Filesystem — Create Folder ────────────────────────────────────────
         m = re.search(
-            r"(?:create|make|mkdir)\s+(?:a\s+)?(?:folder|directory|dir)\s+(?:called|named)?\s*['\"]?([^'\"]+?)['\"]?"
-            r"(?:\s+(?:on|in|at|inside)\s+(.+))?$",
-            text_clean
+            r"(?:create|make|mkdir)\s+(?:a\s+)?(?:new\s+)?(?:folder|directory|dir)\s+(?:called\s+|named\s+)?['\"]?([^'\"\s]+)['\"]?"
+            r"(?:\s+(?:on|in|at|inside|under)\s+(.+))?$",
+            text_lp,
         )
         if m:
-            folder_name = m.group(1).strip()
-            location = m.group(2).strip() if m.group(2) else "Desktop"
-            path = f"{location}/{folder_name}" if "/" not in folder_name and "\\" not in folder_name else folder_name
+            folder_name = raw_group(m, 1)
+            location = raw_group(m, 2) if m.group(2) else "Desktop"
+            if "/" in folder_name or "\\" in folder_name:
+                path = folder_name
+            else:
+                sep = "\\" if "\\" in location else "/"
+                path = f"{location.rstrip(chr(92) + '/')}{sep}{folder_name}"
             return ListenerOutput(intent="create_folder", language="en",
                                   entities={"dir_path": path},
                                   requires_execution=True, confidence=0.90)
 
         # ── Filesystem — Search Files ─────────────────────────────────────────
-        m = re.search(r"find (?:all )?(.+?) files?(?:\s+in|\s+inside|\s+on|\s+from)?\s*(.+)?$", text_clean)
+        m = re.search(
+            r"^(?:please\s+)?find\s+(?:all\s+)?(?:the\s+|my\s+)?(\*?\.?[\w]+)\s+files?"
+            r"(?:\s+(?:in|inside|on|from|under)\s+(.+))?$",
+            text_lp,
+        )
         if m:
-            pattern_hint = m.group(1).strip()
-            location = (m.group(2) or "home").strip()
-            ext = pattern_hint.lstrip("*.")
+            WORD_TO_EXT = {"python": "py", "text": "txt", "markdown": "md", "excel": "xlsx",
+                           "word": "docx", "powerpoint": "pptx", "image": "png", "javascript": "js"}
+            hint = m.group(1).lstrip("*.")
+            ext = WORD_TO_EXT.get(hint, hint)
+            location = raw_group(m, 2) if m.group(2) else "home"
             return ListenerOutput(intent="search_files", language="en",
-                                  entities={"search_path": location, "extension": ext},
+                                  entities={"search_path": location, "pattern": f"*.{ext}"},
                                   requires_execution=True, confidence=0.85)
 
         # ── Clipboard ─────────────────────────────────────────────────────────

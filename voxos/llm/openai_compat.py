@@ -77,6 +77,11 @@ class OpenAICompatibleProvider(LLMProvider):
 
         if config.response_format:
             kwargs["response_format"] = config.response_format
+            # gpt-oss reasons before answering. At default effort a long request
+            # can exhaust max_tokens mid-reasoning, leaving no JSON, and Groq
+            # rejects the call with json_validate_failed.
+            if "gpt-oss" in config.model:
+                kwargs["reasoning_effort"] = "low"
 
         log.debug(
             "llm_request",

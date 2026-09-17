@@ -45,6 +45,15 @@ NON_RETRYABLE_ERRORS = frozenset({
     "DIR_NOT_FOUND",
 })
 
+# Errors that mean the *plan* was wrong (bad argument names, unknown tool),
+# not that the world refused the action. Replanning with the error text fixes
+# these, so they are never fatal even though VALIDATION_ERROR is listed above
+# for tool-level callers.
+PLANNER_ERRORS = frozenset({
+    "VALIDATION_ERROR",
+    "TOOL_NOT_FOUND",
+})
+
 
 class TaskManager:
     """
@@ -314,7 +323,13 @@ class TaskManager:
         # Stage 2: Routing
         t2 = time.monotonic()
         router = get_execution_router()
-        exec_class = router.route(listener_output.intent, listener_output.confidence, listener_output.entities)
+        exec_class = router.route(
+            listener_output.intent,
+            listener_output.confidence,
+            listener_output.entities,
+            source=getattr(listener_output, "source", "rules"),
+            request_text=task.user_request,
+        )
         task.execution_class = exec_class.value
         t3 = time.monotonic()
         task.routing_ms = (t3 - t2) * 1000
@@ -390,8 +405,13 @@ class TaskManager:
             # Fast-fail check for non-retryable errors
             has_fatal_error = False
             for step_res in executor_output.step_results:
-                if step_res.get("status") == "FAILED" and step_res.get("error_code") in NON_RETRYABLE_ERRORS:
-                    log.warning("fast_failing_on_fatal_error", task_id=task.id, error_code=step_res.get("error_code"))
+                code = step_res.get("error_code")
+                if (
+                    step_res.get("status") == "FAILED"
+                    and code in NON_RETRYABLE_ERRORS
+                    and code not in PLANNER_ERRORS
+                ):
+                    log.warning("fast_failing_on_fatal_error", task_id=task.id, error_code=code)
                     has_fatal_error = True
                     break
             
@@ -418,11 +438,13 @@ class TaskManager:
                 log.info("task_succeeded", task_id=task.id, attempts=attempt + 1)
                 return task
 
-            # Verification failed
+            # Verification failed. A deterministic route has no plan of its own
+            # to revise, so hand the request and the failure to the Strategist.
             if exec_class in (ExecutionClass.FAST_PATH, ExecutionClass.AUTOMATION):
-                # Deterministic tasks shouldn't go back to Strategist for replanning
-                break
-                
+                task.escalated_from = exec_class.value
+                exec_class = ExecutionClass.REASONING
+                log.warning("deterministic_route_escalated", task_id=task.id, from_class=task.escalated_from)
+
             if task.can_retry():
                 task.increment_retry()
                 await self.transition(task, TaskStatus.REPLANNING)

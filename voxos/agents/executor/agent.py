@@ -13,6 +13,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -31,6 +32,45 @@ from voxos.tools.registry import get_tool_registry
 
 log = get_logger(__name__)
 metrics = get_metrics()
+
+_REFERENCE = re.compile(r"\{\{\s*([A-Za-z0-9_\-]+)((?:\.[^\s.{}]+)+)\s*\}\}")
+
+
+def resolve_step_references(value: Any, results: dict[str, dict[str, Any]]) -> Any:
+    """Replace `{{step_id.a.0.b}}` with that path in an earlier step's output.
+
+    Plans are written before anything runs, so a step that needs another
+    step's output ("find the file, then read it") refers to it symbolically.
+    A string that is exactly one reference takes the referenced value's type;
+    a reference inside longer text is interpolated as a string.
+
+    Raises KeyError when the step, key or index does not exist.
+    """
+    if isinstance(value, dict):
+        return {k: resolve_step_references(v, results) for k, v in value.items()}
+    if isinstance(value, list):
+        return [resolve_step_references(v, results) for v in value]
+    if not isinstance(value, str) or "{{" not in value:
+        return value
+
+    def lookup(match: re.Match) -> Any:
+        step_id, path = match.group(1), match.group(2).lstrip(".").split(".")
+        if step_id not in results:
+            raise KeyError(f"No output from step '{step_id}'")
+        current: Any = results[step_id].get("data")
+        for part in path:
+            if isinstance(current, list) and part.isdigit() and int(part) < len(current):
+                current = current[int(part)]
+            elif isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                raise KeyError(f"'{match.group(0)}' not found in output of step '{step_id}'")
+        return current
+
+    whole = _REFERENCE.fullmatch(value.strip())
+    if whole:
+        return lookup(whole)
+    return _REFERENCE.sub(lambda m: str(lookup(m)), value)
 
 
 class ExecutorInput(BaseModel):
@@ -115,7 +155,7 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
             # Execute ready steps (could run in parallel if safe)
             results = await asyncio.gather(
                 *[
-                    self._execute_step(s, task, input.session_id, input.permissions)
+                    self._execute_step(s, task, input.session_id, input.permissions, all_results)
                     for s in ready
                 ],
                 return_exceptions=False,
@@ -162,10 +202,25 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
         task: Task,
         session_id: str | None,
         permissions: PermissionManager | None,
+        prior_results: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute a single plan step with full security checks."""
         step.status = StepStatus.IN_PROGRESS
         step.started_at = datetime.now(timezone.utc)
+
+        # Fill in references to earlier steps' outputs before anything checks
+        # the arguments, so validation, risk and verification see real values.
+        try:
+            step.arguments = resolve_step_references(step.arguments, prior_results or {})
+        except KeyError as e:
+            step.status = StepStatus.FAILED
+            step.error = f"Unresolvable step reference: {e}"
+            return {
+                "step_id": step.id,
+                "status": "FAILED",
+                "error": step.error,
+                "error_code": "VALIDATION_ERROR",
+            }
 
         await self._bus.publish(VoxEvent(
             event_type=EventType.TASK_STEP_STARTED,

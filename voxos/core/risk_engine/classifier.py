@@ -61,6 +61,15 @@ LOW_RISK_COMMANDS = frozenset({
     "tasklist", "pgrep",
 })
 
+# Commands whose arguments are printed, not executed
+PRINT_COMMANDS = frozenset({"echo", "printf", "write-host", "write-output"})
+
+# Commands that only read; touching a protected path with these is not a risk
+READ_ONLY_COMMANDS = frozenset({
+    "ls", "ll", "la", "dir", "cat", "type", "head", "tail", "less", "more",
+    "grep", "rg", "stat", "file", "wc", "get-content", "get-childitem", "gc", "gci",
+})
+
 # Patterns that ALWAYS indicate HIGH or CRITICAL risk
 CRITICAL_PATTERNS = [
     # Mass deletion
@@ -93,10 +102,41 @@ CRITICAL_PATTERNS = [
     r"\bpowershell\s+-(Enc|EncodedCommand)\b",  # Encoded PowerShell
     r"[A-Za-z0-9+/]{50,}={0,2}",                # Base64 payloads (heuristically >50 chars)
     r"\bcmd\s+/c\s+[\"']?(powershell|bash|sh)\b",# Nested shell execution
+    # rm with -r and -f given as separate flags, in either order
+    r"\brm\s+(?:-\S+\s+)*-[a-zA-Z]*r[a-zA-Z]*\s+(?:-\S+\s+)*-[a-zA-Z]*f",
+    r"\brm\s+(?:-\S+\s+)*-[a-zA-Z]*f[a-zA-Z]*\s+(?:-\S+\s+)*-[a-zA-Z]*r",
+    r"--no-preserve-root",
+    # Filesystem creation / wiping
+    r"\bmkfs(?:\.\w+)?\b",
+    # Fork bomb: a function that pipes into itself in the background
+    r"(\S+)\s*\(\)\s*\{[^}]*\1\s*\|\s*\1\s*&",
+    # Deleting everything under the filesystem root
+    r"\bfind\s+/\s+.*-delete\b",
+    # World-writable permissions on the root
+    r"\bchmod\s+(?:-\S+\s+)*-R\s+(?:-\S+\s+)*[0-7]{3,4}\s+/(?:\s|$)",
+    r"\bchmod\s+(?:-\S+\s+)*[0-7]{3,4}\s+-R\s+/(?:\s|$)",
+    # Destroying backups / recovery (ransomware staple)
+    r"\bvssadmin\s+delete\s+shadows\b",
+    r"\bwmic\s+shadowcopy\s+delete\b",
+    r"\bwbadmin\s+delete\b",
+    # Creating or re-passwording accounts
+    r"\bnet\s+user\s+\S+\s+\S+",
+    # PowerShell equivalents of disk formatting and shutdown
+    r"\b(?:format-volume|clear-disk|initialize-disk|stop-computer|restart-computer)\b",
+    # Decode-then-execute
+    r"base64\s+(?:-d|-D|--decode)\b.*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b",
+    r"\$\((?:[^)]*\|)?\s*[^)]*base64\s+(?:-d|-D|--decode)",
+    r"\bfrombase64string\b",
+    r"\bcertutil\b.*-(?:decode|decodehex|urlcache)\b",
+    # PowerShell execute-string and download cradles
+    r"\b(?:iex|invoke-expression)\b",
+    r"\.download(?:string|file|data)\s*\(",
 ]
 
 HIGH_RISK_PATTERNS = [
     r"\bsudo\b",
+    # PowerShell destructive verb families (Remove-Item, Stop-Process, ...)
+    r"\b(?:remove|stop|clear|uninstall|disable)-[a-z]+\b",
     # File deletion (single or targeted)
     r"\brm\b",
     r"\bdel\b",                                # Windows
@@ -182,6 +222,8 @@ class ClassificationResult:
     requires_approval: bool = False
     is_blocked: bool = False
     block_reason: str | None = None
+    # No rule recognised the command; the gate asks before running it.
+    is_unknown: bool = False
 
 
 class CommandRiskClassifier:
@@ -215,15 +257,37 @@ class CommandRiskClassifier:
         command = self._normalize_command(command)
         reasons: list[str] = []
         matched_patterns: list[str] = []
+        base_cmd = self._extract_base_command(command)
+        base = (base_cmd or "").lower()
 
-        # Check for protected path access
-        protected_hit = self._check_protected_paths(command)
+        # Text an echo/printf prints is data, not a command: `echo "reboot
+        # tomorrow"` must not match the reboot pattern. Only when nothing is
+        # piped, chained or substituted — `echo x | bash` executes the data.
+        scan = command
+        if base in PRINT_COMMANDS and not re.search(r"[|;`]|\$\(|&&", command):
+            scan = re.sub(r"(['\"]).*?\1", '""', command)
+
+        # Check for protected path access. Reading /etc is not a risk; writing
+        # to it (or redirecting output into it) is.
+        protected_hit = self._check_protected_paths(scan)
+        if protected_hit and base in READ_ONLY_COMMANDS and ">" not in scan:
+            protected_hit = None
         if protected_hit:
             reasons.append(f"Accesses protected path: {protected_hit}")
 
+        if self._is_recursive_delete_of_root(scan, protected_hit):
+            reasons.append("Recursive deletion of a root, home or protected path")
+            return ClassificationResult(
+                risk_level=RiskLevel.CRITICAL,
+                reasons=reasons,
+                requires_approval=True,
+                is_blocked=True,
+                block_reason="Recursive deletion of a root or protected path is blocked by policy",
+            )
+
         # Layer 1: Critical patterns — these are blocked or require strong approval
         for pattern in self._critical_re:
-            if pattern.search(command):
+            if pattern.search(scan):
                 matched_patterns.append(pattern.pattern)
                 reasons.append("Matches critical risk pattern")
                 log.warning(
@@ -242,7 +306,7 @@ class CommandRiskClassifier:
 
         # Layer 2: High-risk patterns
         for pattern in self._high_re:
-            if pattern.search(command):
+            if pattern.search(scan):
                 matched_patterns.append(pattern.pattern)
                 reasons.append("Matches high-risk operation pattern")
                 return ClassificationResult(
@@ -265,7 +329,7 @@ class CommandRiskClassifier:
 
         # Layer 3: Medium-risk patterns
         for pattern in self._medium_re:
-            if pattern.search(command):
+            if pattern.search(scan):
                 matched_patterns.append(pattern.pattern)
                 reasons.append("Matches medium-risk operation pattern")
                 return ClassificationResult(
@@ -275,9 +339,9 @@ class CommandRiskClassifier:
                     requires_approval=False,
                 )
 
-        # Layer 4: Check if base command is in safe allowlist
-        base_cmd = self._extract_base_command(command)
-        if base_cmd and base_cmd.lower() in LOW_RISK_COMMANDS:
+        # Layer 4: Check if base command is in safe allowlist. PowerShell's
+        # Get-/Test- verbs are read-only by convention.
+        if base and (base in LOW_RISK_COMMANDS or base.startswith(("get-", "test-"))):
             return ClassificationResult(
                 risk_level=RiskLevel.LOW,
                 reasons=["Command in safe allowlist"],
@@ -290,7 +354,18 @@ class CommandRiskClassifier:
             risk_level=RiskLevel.MEDIUM,
             reasons=["Unknown command — defaulting to MEDIUM (conservative policy)"],
             requires_approval=False,
+            is_unknown=True,
         )
+
+    @staticmethod
+    def _is_recursive_delete_of_root(command: str, protected_hit: str | None) -> bool:
+        lower = command.lower()
+        if not re.search(r"\b(?:rm|del|erase|rd|rmdir|remove-item|ri)\b", lower):
+            return False
+        if not re.search(r"(?:\s-[a-z]*r[a-z]*\b|\s-recurse\b|\s/s\b)", lower):
+            return False
+        root_like = re.search(r"(?:^|\s|[\"'])(?:/\*?|~/?|\$home/?|[a-z]:\\?\*?)(?=\s|$|[\"'])", lower)
+        return bool(root_like or protected_hit)
 
     def assess_command(self, command: str) -> RiskLevel:
         """Return the simplified risk level used by older callers."""
@@ -363,7 +438,9 @@ class CommandRiskClassifier:
     @staticmethod
     def _normalize_command(command: str) -> str:
         """Remove simple shell escaping before pattern classification."""
-        return re.sub(r"\\(?=[A-Za-z])", "", command.strip())
+        command = re.sub(r"\\(?=[A-Za-z])", "", command.strip())
+        # Empty quote pairs splice a word without changing it: r''m == rm
+        return re.sub(r"(?<=\w)(?:''|\"\")(?=\w)", "", command)
 
     @staticmethod
     def _extract_base_command(command: str) -> str | None:

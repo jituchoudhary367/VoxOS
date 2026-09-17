@@ -24,6 +24,8 @@ from voxos.observability.logger import get_logger
 
 log = get_logger(__name__)
 
+SHELL_TOOLS = frozenset({"terminal.execute", "os.shell_command"})
+
 
 @dataclass
 class RiskDecision:
@@ -140,6 +142,24 @@ class RiskEngine:
                 is_blocked=True,
                 block_reason=block_reason,
                 reasons=cmd_classification.reasons if cmd_classification else ["CRITICAL risk"],
+            )
+
+        # Shell tools declare HIGH + requires_confirmation because *some*
+        # commands are dangerous. With the command itself classified, let
+        # that verdict decide: recognised LOW/MEDIUM commands run, HIGH and
+        # unrecognised ones ask first. (Otherwise every `git status` needed
+        # approval — a 100% false-positive gate.)
+        if meta.name in SHELL_TOOLS and cmd_classification is not None:
+            if cmd_classification.risk_level == RiskLevel.HIGH or cmd_classification.is_unknown:
+                return RiskDecision(
+                    risk_level=cmd_classification.risk_level,
+                    requires_approval=True,
+                    reasons=cmd_classification.reasons,
+                )
+            return RiskDecision(
+                risk_level=cmd_classification.risk_level,
+                requires_approval=False,
+                reasons=cmd_classification.reasons or ["Approved automatically"],
             )
 
         if base_risk == RiskLevel.HIGH or meta.requires_confirmation:

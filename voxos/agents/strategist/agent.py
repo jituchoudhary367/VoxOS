@@ -64,6 +64,32 @@ INTENT_TO_TOOL: dict[str, str] = {
 }
 
 
+def _type_name(annotation: Any) -> str:
+    name = getattr(annotation, "__name__", None)
+    if name and not getattr(annotation, "__args__", None):
+        return name
+    return str(annotation).replace("typing.", "")
+
+
+def describe_tools(registry: Any) -> str:
+    """One line per tool: `name(arg: type, opt: type = default) — description`.
+
+    The planner must see argument names; given only tool names it invents keys
+    like `path` for `file_path`, and every such step fails validation.
+    """
+    lines = []
+    for meta in registry.list_tools():
+        tool = registry.get(meta.name)
+        params = []
+        for arg, field in tool.input_schema.model_fields.items():
+            param = f"{arg}: {_type_name(field.annotation)}"
+            if not field.is_required():
+                param += f" = {field.default!r}"
+            params.append(param)
+        lines.append(f"- {meta.name}({', '.join(params)}) — {meta.description}")
+    return "\n".join(lines)
+
+
 STRATEGIST_SYSTEM_PROMPT = """You are the Strategist Agent for VoxOS, an autonomous AI assistant.
 
 Your job is to produce a step-by-step execution plan given a user's intent.
@@ -85,10 +111,19 @@ You MUST respond with a valid JSON object matching this schema:
   ]
 }
 
-Available tools: {tools}
+Available tools, with their exact argument names:
+{tools}
 
 Rules:
 - Only use tools from the provided list
+- "arguments" keys MUST be exactly the argument names shown for that tool; supply every argument that has no default
+- Give step ids as "step_1", "step_2", ... and refer to those ids in depends_on
+- One step per action: a request with several actions ("do X, then Y") needs several steps
+- Never guess a value an earlier step will produce (e.g. where a file was found). Reference it as "{{step_N.<path>}}" inside an argument value and put step_N in depends_on; the executor substitutes the real value before running the step. Output shapes:
+  os.search_files → {"results": [{"path", "name"}], "count"}  (first match: {{step_1.results.0.path}})
+  os.list_dir → {"path", "items", "count"}; os.read_file → {"content", "path"}; os.write_file / os.create_folder → {"path"}
+  web.search → {"results": [...]}; browser.open / browser.search → {"title", "url"}
+- If PREVIOUS FAILURES are listed, fix the cause (wrong argument name, missing argument, failing tool) instead of repeating the same step; if a tool keeps failing, reach the goal with a different tool
 - Use depends_on to chain steps that must execute in order
 - Independent steps (e.g. parallel searches) can have no dependencies
 - Set tool=null for steps that are pure reasoning/formatting (not tool calls)
@@ -151,8 +186,11 @@ class StrategistAgent(BaseAgent[StrategistInput, StrategistOutput]):
     async def _create_plan(self, input: StrategistInput) -> StrategistOutput:
         """Create a plan, using fast-path for simple single-tool intents."""
         # Fast path: deterministic single-step plan
+        from voxos.core.router import is_compound_request
+
         tool_name = INTENT_TO_TOOL.get(input.intent)
-        if tool_name and not input.previous_failures:
+        # A compound request labelled with one intent still needs a real plan.
+        if tool_name and not input.previous_failures and not is_compound_request(input.user_request):
             tool = self._registry.get(tool_name)
             if tool:
                 plan = TaskPlan(
@@ -175,7 +213,7 @@ class StrategistAgent(BaseAgent[StrategistInput, StrategistOutput]):
 
     async def _llm_plan(self, input: StrategistInput) -> StrategistOutput:
         """Use LLM to create a multi-step plan."""
-        tool_list = ", ".join(m.name for m in self._registry.list_tools())
+        tool_list = describe_tools(self._registry)
 
         failure_context = ""
         if input.previous_failures:

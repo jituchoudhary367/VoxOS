@@ -8,6 +8,7 @@ Class C — REASONING:  Complex, multi-step, ambiguous — use Strategist.
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 from typing import Any
 
@@ -120,6 +121,24 @@ AUTOMATION_INTENT_TO_TOOL: dict[str, str] = {
     "browser_back": "browser.back",
 }
 
+_COMPOUND_RE = re.compile(r"\b(?:and|then|also|after that|afterwards|followed by)\b|[,;]")
+
+
+def is_compound_request(text: str) -> bool:
+    """True when a request strings several actions together."""
+    return bool(_COMPOUND_RE.search(text.lower()))
+
+
+def _arguments_valid(tool_name: str, entities: dict[str, Any]) -> bool:
+    from voxos.tools.registry import get_tool_registry
+
+    tool = get_tool_registry().get(tool_name)
+    if tool is None:
+        return False
+    _, error = tool.validate_args(entities)
+    return error is None
+
+
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
@@ -139,6 +158,9 @@ class ExecutionRouter:
         intent: str,
         confidence: float = 1.0,
         entities: dict[str, Any] | None = None,
+        *,
+        source: str = "rules",
+        request_text: str = "",
     ) -> ExecutionClass:
         """
         Determine the execution class for a given intent.
@@ -146,14 +168,27 @@ class ExecutionRouter:
         Fast-path requires confidence >= 0.80.
         Automation requires confidence >= 0.70.
         Anything else goes to REASONING.
+
+        Rule-based classifications are trusted. An intent name guessed by the
+        LLM only gets a deterministic route when its entities are valid
+        arguments for the mapped tool and the request is a single action —
+        otherwise the entities are free-form and a compound request would be
+        collapsed into one step, so the Strategist has to plan it.
         """
         if intent in FAST_PATH_INTENT_TO_TOOL and confidence >= 0.80:
-            return ExecutionClass.FAST_PATH
+            exec_class = ExecutionClass.FAST_PATH
+        elif intent in AUTOMATION_INTENTS and confidence >= 0.70:
+            exec_class = ExecutionClass.AUTOMATION
+        else:
+            return ExecutionClass.REASONING
 
-        if intent in AUTOMATION_INTENTS and confidence >= 0.70:
-            return ExecutionClass.AUTOMATION
+        if source != "rules":
+            tool_name = self.fast_path_tool(intent) or self.automation_tool(intent)
+            if not tool_name or is_compound_request(request_text) or not _arguments_valid(tool_name, entities or {}):
+                log.info("llm_intent_demoted_to_reasoning", intent=intent, tool=tool_name)
+                return ExecutionClass.REASONING
 
-        return ExecutionClass.REASONING
+        return exec_class
 
     def fast_path_tool(self, intent: str) -> str | None:
         """Return the registered tool name for a fast-path intent."""

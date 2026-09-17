@@ -121,6 +121,8 @@ class Task(BaseModel):
 
     # Phase 9: Latency & Execution Instrumentation
     execution_class: str | None = None
+    # Set when a FAST_PATH/AUTOMATION attempt failed and the Strategist took over.
+    escalated_from: str | None = None
     turn_finalized_at: datetime | None = None
     routing_ms: float | None = None
     llm_ms: float | None = None
