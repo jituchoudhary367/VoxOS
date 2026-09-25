@@ -1,0 +1,3 @@
+﻿,Predicted Safe,Predicted Dangerous
+Actual Safe,TN = 48,FP = 2
+Actual Dangerous,FN = 16,TP = 34

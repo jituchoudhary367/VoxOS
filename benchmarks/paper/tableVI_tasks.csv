@@ -1,0 +1,21 @@
+﻿Task ID,Category,Request,Route,Steps,Success,Replanned,Time (s)
+T1,Information,What time is it?,FAST_PATH,1,3/3,0,0.91
+T2,Information,What operating system am I running?,FAST_PATH,1,3/3,0,<0.01
+T3,Information,How much RAM is being used right now?,FAST_PATH,1,3/3,0,0.11
+T4,File system,List files in <WS>,FAST_PATH,1,3/3,0,<0.01
+T5,File system,Find all .py files in <WS>,FAST_PATH,1,3/3,0,<0.01
+T6,File operations,Create a folder called reports in <WS>,FAST_PATH,1,3/3,0,<0.01
+T7,File operations,Write a file at <WS>\todo.txt with the text buy milk,REASONING,1,3/3,3,2.6
+T8,File operations,Read the file <WS>\notes.txt,"FAST_PATH, REASONING",1,3/3,1,1.4
+T9,File operations,Copy <WS>\notes.txt to <WS>\notes_backup.txt,REASONING,1,3/3,0,1.66
+T10,File operations,Rename <WS>\report.md to final_report.md,REASONING,1,3/3,3,2.49
+T11,Application,Open Notepad,FAST_PATH,1,3/3,0,0.59
+T12,Application,What applications are currently running?,REASONING,1,3/3,0,1.42
+T13,Application,Close Notepad,FAST_PATH,1,3/3,0,0.52
+T14,Browser,Open github.com in the browser,AUTOMATION,1,3/3,0,1.26
+T15,Browser,Search for Python asyncio tutorial,AUTOMATION,1,3/3,0,1.27
+T16,Multi-step,Find the file named sample.csv in <WS> and then read its contents,REASONING,2,3/3,0,1.56
+T17,Multi-step,"Create a folder named project in <WS>, then create a file readme.txt inside it containing Hello VoxOS, then read the file back",REASONING,3,3/3,0,1.82
+T18,Multi-step,Create a folder named archive in <WS> and then copy <WS>\notes.txt into that archive folder,REASONING,2,3/3,0,1.94
+T19,Parallel,"Tell me the current time, my system information, and my RAM usage",REASONING,3,3/3,0,2.01
+T20,Parallel,Create two files in <WS>: a.txt containing alpha and b.txt containing beta,REASONING,3,3/3,0,1.94

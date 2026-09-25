@@ -104,53 +104,235 @@ class ConversationService:
 
     @staticmethod
     def _reply_from_task(task: Any) -> AssistantReply:
+        status = getattr(task, "status", None)
+        status_name = str(getattr(status, "value", status) or "")
+
+        if status_name == "WAITING_FOR_APPROVAL":
+            return AssistantReply(
+                text="That needs your approval before I run it. Check the approval request.",
+                kind="info",
+            )
+
         if task.error_info:
-            failures = task.error_info.get("failures", [])
-            if any("Google blocked" in str(failure) for failure in failures):
+            failures = [str(failure) for failure in task.error_info.get("failures", [])]
+            reason = str(task.error_info.get("reason", ""))
+            blob = " ".join(failures + [reason])
+
+            if "Google blocked" in blob:
                 return AssistantReply(
                     text="Google blocked that automated search. Try searching with Bing instead.",
                     kind="error",
                     action="search",
+                )
+            if "blocked by policy" in blob or "critical risk" in blob:
+                return AssistantReply(
+                    text=(
+                        "I blocked that — it matches a critical-risk pattern, "
+                        "so I'm not allowed to run it."
+                    ),
+                    kind="error",
+                )
+            if "denied by the sandbox" in blob:
+                return AssistantReply(
+                    text=(
+                        "That path is outside the folders I'm allowed to touch, "
+                        "so I stopped before doing anything."
+                    ),
+                    kind="error",
                 )
             return AssistantReply(
                 text="I couldn’t complete that request. Please try again.",
                 kind="error",
             )
 
-        data = ConversationService._first_result_data(task.result)
-        if data is None:
-            return AssistantReply(text="Done.", kind="success")
+        if status_name == "FAILED":
+            return AssistantReply(
+                text="I couldn’t complete that request. Please try again.",
+                kind="error",
+            )
 
-        if getattr(task, "intent", None) == "open_browser":
+        intent = getattr(task, "intent", None)
+        if intent == "open_browser":
             return AssistantReply(text="Opened your browser.", kind="success", action="open")
-        if getattr(task, "intent", None) == "open_youtube":
+        if intent == "open_youtube":
             return AssistantReply(text="Opened YouTube.", kind="success", action="open")
 
+        sentences: list[str] = []
+        action: str | None = None
+        for data in ConversationService._result_data_steps(task.result):
+            rendered = ConversationService._sentence_for(data, intent)
+            if rendered is None:
+                continue
+            text, step_action = rendered
+            if text not in sentences:
+                sentences.append(text)
+            action = action or step_action
+
+        if not sentences:
+            return AssistantReply(text="Done.", kind="success")
+        return AssistantReply(text=" ".join(sentences), kind="success", action=action)
+
+    @staticmethod
+    def _sentence_for(
+        data: dict[str, Any], intent: str | None = None
+    ) -> tuple[str, str | None] | None:
+        """Turn one tool's result payload into a sentence a person can read."""
         status = str(data.get("status", "")).strip()
         app_name = str(data.get("app_name", "")).strip()
         if status.lower().startswith("launched") or app_name:
             name = app_name or status.removeprefix("Launched ").strip()
-            return AssistantReply(text=f"Opened {name.title()}.", kind="success", action="open")
+            return f"Opened {name.title()}.", "open"
 
-        engine = data.get("engine")
-        query = data.get("query")
+        engine, query = data.get("engine"), data.get("query")
         if engine and query:
-            return AssistantReply(
-                text=f"Searched {str(engine).title()} for {query}.",
-                kind="success",
-                action="search",
-            )
+            return f"Searched {str(engine).title()} for {query}.", "search"
 
-        return AssistantReply(text="Done.", kind="success")
+        if "formatted" in data or ("hour" in data and "minute" in data):
+            return ConversationService._time_sentence(data), None
+
+        if isinstance(data.get("os"), dict):
+            os_info = data["os"]
+            host = data.get("host") if isinstance(data.get("host"), dict) else {}
+            name = " ".join(
+                part for part in (os_info.get("system"), str(os_info.get("release", ""))) if part
+            ).strip()
+            hostname = (host or {}).get("hostname")
+            sentence = f"You're running {name}" if name else "Here are your system details"
+            if hostname:
+                sentence += f" on {hostname}"
+            uptime = (host or {}).get("uptime_human")
+            if uptime:
+                sentence += f", up for {uptime}"
+            return sentence + ".", None
+
+        if isinstance(data.get("cpu"), dict) or isinstance(data.get("memory"), dict):
+            cpu = data.get("cpu") or {}
+            memory = data.get("memory") or {}
+            parts = []
+            if cpu.get("percent") is not None:
+                parts.append(f"CPU is at {cpu['percent']}%")
+            if memory.get("percent") is not None:
+                used, total = memory.get("used_gb"), memory.get("total_gb")
+                detail = f" ({used} of {total} GB used)" if used and total else ""
+                parts.append(f"memory at {memory['percent']}%{detail}")
+            disk = data.get("disk") or {}
+            if disk.get("percent") is not None:
+                parts.append(f"disk at {disk['percent']}%")
+            return " and ".join(parts) + "." if parts else None, None
+
+        if "content" in data:
+            body = ConversationService._shorten(str(data["content"]).strip())
+            name = ConversationService._base_name(data.get("path"))
+            prefix = f"{name} contains: " if name else "It says: "
+            return prefix + body, None
+
+        if isinstance(data.get("items"), list):
+            items = [
+                entry.get("name", "") if isinstance(entry, dict) else entry
+                for entry in data["items"]
+            ]
+            return ConversationService._listing_sentence(
+                items, data.get("count"), "item", ConversationService._base_name(data.get("path"))
+            ), None
+
+        if isinstance(data.get("results"), list):
+            results = data["results"]
+            if results and isinstance(results[0], dict) and "name" in results[0]:
+                names = [str(entry.get("name", "")) for entry in results]
+                return ConversationService._listing_sentence(
+                    names, data.get("count"), "match", None
+                ), None
+            if results and isinstance(results[0], dict):
+                return ConversationService._web_result_sentence(results), None
+            return ConversationService._listing_sentence(
+                results, data.get("count"), "match", None
+            ), None
+
+        if isinstance(data.get("windows"), list):
+            return ConversationService._listing_sentence(
+                data["windows"], data.get("count"), "window open", None
+            ), None
+
+        if data.get("bytes_written") is not None:
+            name = ConversationService._base_name(data.get("path")) or "the file"
+            return f"Saved {name} ({data['bytes_written']} bytes).", None
+
+        if data.get("created") and data.get("path"):
+            return f"Created folder {ConversationService._base_name(data['path'])}.", None
+
+        if data.get("source") and data.get("destination"):
+            verb = "Moved" if intent and "move" in intent.lower() else "Copied"
+            source = ConversationService._base_name(data["source"])
+            destination = ConversationService._base_name(data["destination"])
+            return f"{verb} {source} to {destination}.", None
+
+        if data.get("old_path") and data.get("new_path"):
+            old = ConversationService._base_name(data["old_path"])
+            new = ConversationService._base_name(data["new_path"])
+            return f"Renamed {old} to {new}.", None
+
+        if data.get("deleted_path"):
+            return f"Deleted {ConversationService._base_name(data['deleted_path'])}.", None
+
+        return None
 
     @staticmethod
-    def _first_result_data(result: Any) -> dict[str, Any] | None:
+    def _time_sentence(data: dict[str, Any]) -> str:
+        hour, minute = data.get("hour"), data.get("minute")
+        if hour is None or minute is None:
+            return f"It's {data.get('formatted', '')}".strip() + "."
+        suffix = "AM" if int(hour) < 12 else "PM"
+        display_hour = int(hour) % 12 or 12
+        clock = f"{display_hour}:{int(minute):02d} {suffix}"
+        weekday = data.get("weekday")
+        return f"It's {clock} on {weekday}." if weekday else f"It's {clock}."
+
+    @staticmethod
+    def _web_result_sentence(results: list[dict[str, Any]]) -> str:
+        """Render a web-search hit as speech, never as its raw payload."""
+        first = results[0]
+        title = str(first.get("title", "")).strip()
+        body = str(first.get("snippet") or first.get("body") or "").strip()
+        if "search failed" in title.lower():
+            return f"My web search failed: {body or 'no detail was given'}."
+        if not body:
+            return f"I found {title}." if title else "I found some results."
+        return "I found this: " + ConversationService._shorten(body)
+
+    @staticmethod
+    def _listing_sentence(
+        values: list[Any], count: Any, noun: str, location: str | None
+    ) -> str:
+        total = count if count is not None else len(values)
+        shown = ", ".join(str(value) for value in values[:10])
+        if len(values) > 10:
+            shown += ", …"
+        where = f" in {location}" if location else ""
+        plural = "" if total == 1 else ("es" if noun.endswith(("s", "x", "ch", "sh")) else "s")
+        if not shown:
+            return f"No {noun}{plural} found{where}."
+        return f"{total} {noun}{plural}{where}: {shown}."
+
+    @staticmethod
+    def _shorten(text: str, limit: int = 400) -> str:
+        collapsed = " ".join(text.lstrip("﻿").split())
+        return collapsed if len(collapsed) <= limit else collapsed[:limit].rstrip() + " …"
+
+    @staticmethod
+    def _base_name(path: Any) -> str:
+        if not path:
+            return ""
+        return str(path).replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+
+    @staticmethod
+    def _result_data_steps(result: Any) -> list[dict[str, Any]]:
         if not isinstance(result, dict):
-            return None
-        for step in result.values():
-            if isinstance(step, dict) and isinstance(step.get("data"), dict):
-                return step["data"]
-        return None
+            return []
+        return [
+            step["data"]
+            for step in result.values()
+            if isinstance(step, dict) and isinstance(step.get("data"), dict)
+        ]
 
     async def _recent_context(self, session_id: str) -> list[dict[str, str]]:
         if self._history is None:

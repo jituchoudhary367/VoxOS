@@ -5,7 +5,7 @@ Vox Bridge — connects the Pipecat real-time voice pipeline to the VoxOS TaskMa
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
@@ -19,8 +19,6 @@ from pipecat.frames.frames import (
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 from voxos.agents.listener.language import detect_language
-from voxos.api.routes.chat import _build_response, _get_agents
-from voxos.core.task_manager.manager import get_task_manager
 from voxos.observability.logger import get_logger
 from voxos.voice.filters import SpeechQualityGate
 from voxos.voice.gate import MicGate
@@ -32,6 +30,27 @@ log = get_logger(__name__)
 # Upper bound on how long to wait for streamed playback to finish before
 # assuming the TTS connection stalled and reopening the microphone.
 DEFAULT_PLAYBACK_TIMEOUT_SECS = 60.0
+
+
+def _build_conversation_service():
+    """The same boundary the desktop UI talks to, so both reply identically."""
+    from voxos.agents.executor.agent import ExecutorAgent
+    from voxos.agents.listener.agent import ListenerAgent
+    from voxos.agents.overseer.agent import OverseerAgent
+    from voxos.agents.strategist.agent import StrategistAgent
+    from voxos.core.conversation import ConversationService, DatabaseConversationHistory
+    from voxos.core.permissions import PermissionManager
+    from voxos.core.task_manager.manager import get_task_manager
+
+    return ConversationService(
+        task_manager=get_task_manager(),
+        history=DatabaseConversationHistory(),
+        listener=ListenerAgent(),
+        strategist=StrategistAgent(),
+        executor=ExecutorAgent(),
+        overseer=OverseerAgent(),
+        permissions=PermissionManager(),
+    )
 
 
 class VoxBridge(FrameProcessor):
@@ -48,9 +67,12 @@ class VoxBridge(FrameProcessor):
         quality_gate: SpeechQualityGate | None = None,
         streaming_tts: bool = True,
         playback_timeout_secs: float = DEFAULT_PLAYBACK_TIMEOUT_SECS,
+        responder: Callable[[str, str], Awaitable[str]] | None = None,
     ):
         super().__init__()
         self.session_id = session_id
+        self._responder = responder
+        self._conversation = None
         self.mic_gate = mic_gate
         self.quality_gate = quality_gate or self._default_quality_gate()
         self.streaming_tts = streaming_tts
@@ -134,11 +156,18 @@ class VoxBridge(FrameProcessor):
 
         self._task_queue.put_nowait(turn.text)
 
-    async def _process_queue(self):
-        """Background loop to sequentially process VoxOS tasks from voice input."""
-        listener, strategist, executor, overseer = _get_agents()
-        task_manager = get_task_manager()
+    async def _reply_for(self, user_request: str) -> str:
+        """Answer one utterance through the shared conversation boundary."""
+        if self._responder is not None:
+            return await self._responder(user_request, self.session_id)
 
+        if self._conversation is None:
+            self._conversation = _build_conversation_service()
+        reply = await self._conversation.handle_text(user_request, self.session_id)
+        return reply.text
+
+    async def _process_queue(self):
+        """Background loop to sequentially answer utterances from voice input."""
         while True:
             try:
                 user_request = await self._task_queue.get()
@@ -146,20 +175,7 @@ class VoxBridge(FrameProcessor):
                 if self.on_status:
                     self.on_status("VoxOS: Thinking...", "#FFFF00")
 
-                task = await task_manager.create_task(
-                    session_id=self.session_id,
-                    user_request=user_request,
-                )
-
-                task = await task_manager.run_pipeline(
-                    task=task,
-                    listener=listener,
-                    strategist=strategist,
-                    executor=executor,
-                    overseer=overseer,
-                )
-
-                response_text = _build_response(task, user_request)
+                response_text = await self._reply_for(user_request)
 
                 if self.on_status:
                     self.on_status("VoxOS: Speaking...", "#00FFCC")

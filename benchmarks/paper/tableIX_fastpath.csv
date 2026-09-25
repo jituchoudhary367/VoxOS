@@ -1,0 +1,8 @@
+﻿Metric,Fast path,LLM path
+Mean latency (ms),115.0,1957.2
+Median latency (ms),2.1,1745.0
+p95 latency (ms),109.7,2766.6
+Std. deviation (ms),337.5,738.9
+LLM calls per request,0.0,2.0
+Tokens per request,0.0,2682.6
+Task success,100.0%,100.0%

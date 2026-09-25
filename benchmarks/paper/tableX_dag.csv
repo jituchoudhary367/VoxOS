@@ -1,0 +1,12 @@
+﻿Scenario,Topology,Order kept,Concurrent pairs,Failure handling,Wall (s),Speedup
+S1 Chain A→B→C,A→B→C,5/5,n/a,5/5,0.9,0.97x
+"S2 Fan-in A,B→C","A→C, B→C",5/5,5/5,5/5,0.6,1.46x
+"S3 Independent A,B,C",A  B  C,5/5,15/15,5/5,0.3,2.91x
+S4 Diamond,"A→B, A→C, B→D, C→D",5/5,5/5,5/5,0.9,1.29x
+S5 Uneven fan-in,"A(0.2s)→C, B(0.6s)→C",5/5,5/5,5/5,0.9,1.2x
+S6 Wide parallel ×8,8 independent,5/5,140/140,5/5,0.3,7.76x
+"F1 Chain, middle fails",A→B✗→C,5/5,n/a,5/5,0.6,0.97x
+"F2 Fan-in, one branch fails","A✗→C, B→C",5/5,5/5,5/5,0.3,1.93x
+"F3 Independent, one fails",A✗  B  C,5/5,15/15,5/5,0.3,2.92x
+F4 Transitive skip,A✗→B→C→D,5/5,n/a,5/5,0.3,0.97x
+"F5 Diamond, one arm fails","A→B✗, A→C, B→D, C→D",5/5,5/5,5/5,0.6,1.45x

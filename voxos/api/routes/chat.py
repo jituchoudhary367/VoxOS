@@ -112,70 +112,23 @@ async def chat(
 
 
 def _build_response(task: Any, original_request: str) -> str:
-    """Build a human-readable response from task results."""
+    """Build a human-readable response from task results.
+
+    Result rendering lives in ConversationService so the API, the voice bridge
+    and the desktop UI all speak with one voice. Only the status-specific
+    branches below are particular to this endpoint.
+    """
+    from voxos.core.conversation.service import ConversationService
     from voxos.core.task_manager.models import TaskStatus
 
-    if task.status == TaskStatus.COMPLETED and task.result:
-        # Extract the most useful result data
-        for step_id, step_result in task.result.items():
-            if isinstance(step_result, dict) and step_result.get("status") == "SUCCESS":
-                data = step_result.get("data")
-                if isinstance(data, dict):
-                    return _format_result_data(task.intent or "", data)
+    if task.status == TaskStatus.WAITING_FOR_APPROVAL:
+        return "This action requires your approval. Please check the approval request."
 
     if task.status == TaskStatus.FAILED:
         error = task.error_info or {}
         return f"I wasn't able to complete that task. {error.get('reason', 'An error occurred.')}"
 
-    if task.status == TaskStatus.WAITING_FOR_APPROVAL:
-        return "This action requires your approval. Please check the approval request."
+    if task.result:
+        return ConversationService._reply_from_task(task).text
 
-    # Fallback: summarize what we found
     return f"Task completed with status: {task.status.value}"
-
-
-def _format_result_data(intent: str, data: dict) -> str:
-    """Format tool result data as a natural language response."""
-    if intent == "get_current_time":
-        return (
-            f"The current time is {data.get('formatted', data.get('datetime', 'unknown'))}."
-        )
-    if intent == "get_system_info":
-        host = data.get("host", {})
-        os_info = data.get("os", {})
-        return (
-            f"System: {os_info.get('system', 'Unknown')} {os_info.get('release', '')}\n"
-            f"Hostname: {host.get('hostname', 'unknown')}\n"
-            f"Uptime: {host.get('uptime_human', 'unknown')}"
-        )
-    if intent in {"get_resources", "check_cpu", "check_memory"}:
-        cpu = data.get("cpu", {})
-        mem = data.get("memory", {})
-        disk = data.get("disk", {})
-        return (
-            f"CPU: {cpu.get('percent', 0):.1f}% used\n"
-            f"Memory: {mem.get('used_gb', 0):.1f}GB / {mem.get('total_gb', 0):.1f}GB ({mem.get('percent', 0):.1f}%)\n"
-            f"Disk: {disk.get('free_gb', 0):.1f}GB free of {disk.get('total_gb', 0):.1f}GB"
-        )
-    if intent == "search_web" or (isinstance(data, dict) and "results" in data):
-        results = data.get("results", [])
-        if results:
-            first = results[0]
-            if "Search Failed" in first.get("title", ""):
-                return f"My web search failed due to an error: {first.get('body', 'Rate limit exceeded')}."
-            return f"I found the following information: {first.get('snippet', first.get('body', ''))}"
-        return "I couldn't find any results for that search."
-
-    if "items" in data:
-        items = data.get("items", [])
-        return f"I found {len(items)} items."
-        
-    if "windows" in data:
-        windows = data.get("windows", [])
-        return f"I found {len(windows)} open windows."
-        
-    if "status" in data:
-        return str(data.get("status"))
-
-    # Generic fallback: DO NOT return JSON for TTS.
-    return "I have successfully completed the task."

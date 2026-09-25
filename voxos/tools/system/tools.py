@@ -118,9 +118,13 @@ class GetCurrentTimeInput(BaseModel):
         default="%Y-%m-%d %H:%M:%S %Z",
         description="strftime format string",
     )
-    timezone_name: str = Field(
-        default="UTC",
-        description="Timezone name (e.g. 'UTC', 'Asia/Kolkata', 'US/Eastern')",
+    timezone_name: str | None = Field(
+        default=None,
+        description=(
+            "Timezone name (e.g. 'UTC', 'Asia/Kolkata', 'US/Eastern'). "
+            "Defaults to the machine's own timezone, which is what the user means "
+            "when they ask what time it is."
+        ),
     )
 
 
@@ -145,11 +149,13 @@ class GetCurrentTimeTool(BaseTool):
         return GetCurrentTimeInput
 
     async def _execute(self, args: GetCurrentTimeInput) -> ToolResult:
-        try:
-            import zoneinfo
-            tz = zoneinfo.ZoneInfo(args.timezone_name)
-        except Exception:
-            tz = timezone.utc
+        tz = datetime.now().astimezone().tzinfo
+        if args.timezone_name:
+            try:
+                import zoneinfo
+                tz = zoneinfo.ZoneInfo(args.timezone_name)
+            except Exception:
+                pass  # unknown zone — the local clock is the safer answer
 
         now = datetime.now(tz)
         return ToolResult.ok(data={

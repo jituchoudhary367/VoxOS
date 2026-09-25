@@ -203,6 +203,346 @@ def test_browser_open_result_has_a_human_action_reply() -> None:
     assert reply.kind == "success"
 
 
+def _task(*step_data: dict, intent: str | None = None):
+    return type(
+        "CompletedTask",
+        (),
+        {
+            "result": {
+                f"step_{index + 1}": {"status": "SUCCESS", "data": data}
+                for index, data in enumerate(step_data)
+            },
+            "error_info": None,
+            "intent": intent,
+        },
+    )()
+
+
+def test_time_result_is_spoken_as_the_time() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({
+            "datetime": "2026-09-18T12:16:00+05:30",
+            "formatted": "2026-09-18 12:16:00",
+            "timezone": "Asia/Kolkata",
+            "hour": 12,
+            "minute": 16,
+            "weekday": "Friday",
+        })
+    )
+
+    assert reply.kind == "success"
+    assert "12:16" in reply.text
+    assert "Friday" in reply.text
+    assert "{" not in reply.text
+
+
+def test_system_info_result_names_the_operating_system() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({
+            "os": {"system": "Windows", "release": "11", "machine": "AMD64"},
+            "host": {"hostname": "DESKTOP-ABC", "uptime_human": "3h 12m"},
+            "python": {"version": "3.13.5"},
+        })
+    )
+
+    assert "Windows" in reply.text
+    assert "11" in reply.text
+    assert "{" not in reply.text
+
+
+def test_resource_result_reports_cpu_and_memory() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({
+            "cpu": {"percent": 21.7, "count_logical": 16},
+            "memory": {"percent": 96.5, "used_gb": 15.1, "total_gb": 15.7},
+            "disk": {"percent": 82.5, "free_gb": 120.0},
+        })
+    )
+
+    assert "21.7" in reply.text
+    assert "96.5" in reply.text
+    assert "{" not in reply.text
+
+
+def test_read_file_result_returns_the_contents() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"content": "buy milk", "path": "D:\\demo\\todo.txt"})
+    )
+
+    assert "buy milk" in reply.text
+    assert "{" not in reply.text
+
+
+def test_long_file_contents_are_truncated_for_the_ui() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"content": "x" * 5000, "path": "D:\\demo\\big.txt"})
+    )
+
+    assert len(reply.text) < 700
+    assert "…" in reply.text
+
+
+def test_directory_listing_reports_how_many_items() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"path": "D:\\demo", "items": ["a.txt", "b.txt"], "count": 2})
+    )
+
+    assert "2" in reply.text
+    assert "a.txt" in reply.text
+    assert "{" not in reply.text
+
+
+def test_directory_listing_never_shows_raw_entry_payloads() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({
+            "path": "C:\\work\\demo",
+            "items": [
+                {"name": "app.py", "is_dir": False, "size_bytes": 16, "modified": "2026-09-18T13:23:35"},
+                {"name": "notes.txt", "is_dir": False, "size_bytes": 13, "modified": "2026-09-18T13:23:35"},
+            ],
+            "count": 2,
+        })
+    )
+
+    assert "app.py" in reply.text
+    assert "notes.txt" in reply.text
+    assert "{" not in reply.text
+    assert "size_bytes" not in reply.text
+
+
+def test_file_search_lists_the_file_names_it_found() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({
+            "results": [
+                {"path": "C:\\work\\demo\\app.py", "name": "app.py", "size_bytes": 16},
+                {"path": "C:\\work\\demo\\utils.py", "name": "utils.py", "size_bytes": 10},
+            ],
+            "count": 2,
+            "root": "C:\\work\\demo",
+        })
+    )
+
+    assert "app.py" in reply.text
+    assert "utils.py" in reply.text
+    assert "{" not in reply.text
+
+
+def test_file_search_reports_the_matches() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"results": ["app.py", "utils.py"], "count": 2, "root": "D:\\demo"})
+    )
+
+    assert "2" in reply.text
+    assert "app.py" in reply.text
+
+
+def test_web_search_results_return_a_readable_snippet() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({
+            "results": [
+                {"title": "What is SAP?", "snippet": "SAP is enterprise resource planning software."}
+            ],
+            "count": 1,
+        })
+    )
+
+    assert "SAP is enterprise resource planning software." in reply.text
+    assert "{" not in reply.text
+
+
+def test_failed_web_search_explains_itself_instead_of_pretending() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({
+            "results": [{"title": "Search Failed", "body": "Rate limit exceeded"}],
+            "count": 1,
+        })
+    )
+
+    assert "Rate limit exceeded" in reply.text
+    assert "{" not in reply.text
+
+
+def test_empty_web_search_says_nothing_was_found() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(_task({"results": [], "count": 0}))
+
+    assert "no" in reply.text.lower() or "couldn't" in reply.text.lower()
+
+
+def test_open_window_listing_reports_the_windows() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"windows": ["Notepad", "Chrome"], "count": 2})
+    )
+
+    assert "Notepad" in reply.text
+    assert "{" not in reply.text
+
+
+def test_written_file_is_confirmed_by_name() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"path": "D:\\demo\\todo.txt", "bytes_written": 8, "mode": "w"})
+    )
+
+    assert "todo.txt" in reply.text
+    assert "{" not in reply.text
+
+
+def test_created_folder_is_confirmed_by_name() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"path": "D:\\demo\\reports", "created": True})
+    )
+
+    assert "reports" in reply.text
+    assert "{" not in reply.text
+
+
+def test_copied_file_is_confirmed_with_both_names() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"source": "D:\\demo\\notes.txt", "destination": "D:\\demo\\notes_backup.txt"})
+    )
+
+    assert "notes.txt" in reply.text
+    assert "notes_backup.txt" in reply.text
+
+
+def test_renamed_file_is_confirmed_with_both_names() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"old_path": "D:\\demo\\report.md", "new_path": "D:\\demo\\final_report.md"})
+    )
+
+    assert "report.md" in reply.text
+    assert "final_report.md" in reply.text
+
+
+def test_deleted_file_is_confirmed_by_name() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task({"deleted_path": "D:\\demo\\old.txt"})
+    )
+
+    assert "old.txt" in reply.text
+
+
+def test_every_step_of_a_parallel_task_is_reported() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _task(
+            {"formatted": "2026-09-18 12:16:00", "hour": 12, "minute": 16, "weekday": "Friday"},
+            {"os": {"system": "Windows", "release": "11"}, "host": {"hostname": "DESKTOP-ABC"}},
+            {"cpu": {"percent": 21.7}, "memory": {"percent": 96.5, "used_gb": 15.1, "total_gb": 15.7}},
+        )
+    )
+
+    assert "12:16" in reply.text
+    assert "Windows" in reply.text
+    assert "96.5" in reply.text
+
+
+def _status_task(status: str, *, error_info=None, result=None, intent=None):
+    return type(
+        "StatusTask",
+        (),
+        {"status": status, "result": result, "error_info": error_info, "intent": intent},
+    )()
+
+
+def test_a_blocked_command_says_it_was_blocked_for_safety() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _status_task(
+            "FAILED",
+            error_info={
+                "reason": "Blocked by policy",
+                "failures": ["Command matches critical risk pattern and is blocked by policy"],
+            },
+        )
+    )
+
+    assert "blocked" in reply.text.lower()
+    assert reply.kind == "error"
+    assert "try again" not in reply.text.lower()
+
+
+def test_a_sandbox_denial_explains_the_folder_limit() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(
+        _status_task(
+            "FAILED",
+            error_info={
+                "reason": "Max retries exceeded",
+                "failures": ["Access to path 'D:\\demo' is denied by the sandbox."],
+            },
+        )
+    )
+
+    assert "allowed" in reply.text.lower() or "outside" in reply.text.lower()
+    assert reply.kind == "error"
+
+
+def test_a_task_waiting_for_approval_asks_for_approval() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(_status_task("WAITING_FOR_APPROVAL"))
+
+    assert "approval" in reply.text.lower()
+    assert reply.text != "Done."
+
+
+def test_a_failed_task_never_claims_it_is_done() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(_status_task("FAILED", result={}, error_info=None))
+
+    assert reply.text != "Done."
+    assert reply.kind == "error"
+
+
+def test_unrecognised_result_still_falls_back_to_done() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    reply = ConversationService._reply_from_task(_task({"mystery_key": "unknown shape"}))
+
+    assert reply.text == "Done."
+    assert reply.kind == "success"
+
+
 def test_google_captcha_failure_has_a_safe_actionable_reply() -> None:
     from voxos.core.conversation.service import ConversationService
 

@@ -1,0 +1,9 @@
+﻿Parameter,Value
+Operating System,Windows 11 (build 10.0.26200)
+Processor,Intel(R) Core(TM) Ultra 7 155H
+RAM,15.7 GB
+Python Version,3.13.5
+LLM,"openai/gpt-oss-20b (Listener, Strategist); openai/gpt-oss-120b (replanning), via Groq"
+Backend,FastAPI
+Database,PostgreSQL
+Browser Automation,Playwright

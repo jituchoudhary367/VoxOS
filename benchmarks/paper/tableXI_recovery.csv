@@ -1,0 +1,7 @@
+﻿ID,Scenario,Control,Recovered,Failed,Replans,Alt. plan,Added latency (ms)
+R1,Transient write fault (1×),2/2,2,0,1.0,1,1076.4
+R2,Transient write fault (2×),2/2,2,0,1.5,2,1524.7
+R3,Transient folder fault in multi-step plan,2/2,2,0,1.0,1,-
+R4,Transient read fault,2/2,2,0,2.0,0,396.2
+R5,Persistent write fault (tool unusable),2/2,2,0,2.0,2,2448.8
+R6,Non-retryable: file does not exist,n/a,0,2,0.0,0,-
