@@ -18,12 +18,13 @@ from __future__ import annotations
 import asyncio
 from enum import Enum
 from functools import lru_cache
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from openai import APIConnectionError, RateLimitError
 
 from voxos.config import get_settings
 from voxos.llm.base import LLMConfig, LLMProvider, LLMMessage, LLMResponse
+from voxos.llm.key_pool import KeyPoolProvider
 from voxos.llm.openai_compat import OpenAICompatibleProvider
 from voxos.observability.logger import get_logger
 
@@ -145,16 +146,26 @@ class LLMRouter:
         return await self._provider.health_check()
 
 
+def build_primary_provider(settings: Any) -> LLMProvider:
+    """One provider per configured key, pooled; a single key is a pool of one."""
+    keys = settings.all_groq_keys() or [""]
+    return KeyPoolProvider([
+        OpenAICompatibleProvider(
+            base_url=settings.base_url,  # Usually Groq
+            api_key=key,
+            provider_name=settings.provider,
+            retry_rate_limits=False,
+        )
+        for key in keys
+    ])
+
+
 @lru_cache(maxsize=1)
 def get_llm_router() -> LLMRouter:
     """Return cached LLM router singleton with fallback support."""
     settings = get_settings().llm
     
-    primary = OpenAICompatibleProvider(
-        base_url=settings.base_url,  # Usually Groq
-        api_key=settings.groq_api_key,
-        provider_name=settings.provider,
-    )
+    primary = build_primary_provider(settings)
     
     ollama = OpenAICompatibleProvider(
         base_url="http://localhost:11434/v1",
@@ -168,5 +179,5 @@ def get_llm_router() -> LLMRouter:
         
     provider = FallbackProvider(primary, ollama, ollama_mapper)
     
-    log.info("llm_router_initialized", provider="groq->ollama", fast=settings.fast_model, strong=settings.strong_model)
+    log.info("llm_router_initialized", provider=f"{primary.name}->ollama", fast=settings.fast_model, strong=settings.strong_model)
     return LLMRouter(provider=provider)

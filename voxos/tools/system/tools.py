@@ -190,7 +190,7 @@ class GetSystemResourcesTool(BaseTool):
     def metadata(self) -> ToolMetadata:
         return ToolMetadata(
             name="system.get_resources",
-            description="Get current CPU, memory, and disk usage statistics",
+            description="Get current CPU, memory (RAM), disk usage and battery level/charging status",
             risk_level=RiskLevel.LOW,
             requires_confirmation=False,
             verification_type=VerificationType.AUTOMATIC,

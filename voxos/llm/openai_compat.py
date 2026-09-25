@@ -8,7 +8,7 @@ Works with: OpenAI, Groq, Ollama (openai-compat mode), Together AI,
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from openai import AsyncOpenAI, APIConnectionError, RateLimitError
 from tenacity import (
@@ -36,7 +36,13 @@ class OpenAICompatibleProvider(LLMProvider):
         name:     Identifier (e.g., 'groq', 'openai', 'ollama')
     """
 
-    def __init__(self, base_url: str, api_key: str, provider_name: str = "openai") -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        provider_name: str = "openai",
+        retry_rate_limits: bool = True,
+    ) -> None:
         self._client = AsyncOpenAI(
             base_url=base_url,
             api_key=api_key or "ollama",  # ollama doesn't need a key
@@ -44,10 +50,25 @@ class OpenAICompatibleProvider(LLMProvider):
             max_retries=0,  # We handle retries via tenacity
         )
         self._name = provider_name
+        # Inside a KeyPoolProvider a 429 should move the call to another key
+        # at once, not sleep here, so the pool turns this off.
+        self._retry_rate_limits = retry_rate_limits
+        # Quota left on this key, from the provider's x-ratelimit-* headers.
+        self.rate_limit_state: dict[str, int] = {}
 
     @property
     def name(self) -> str:
         return self._name
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        config: LLMConfig,
+    ) -> LLMResponse:
+        """Send chat completion request with automatic retry on transient errors."""
+        if self._retry_rate_limits:
+            return await self._complete_retrying(messages, config)
+        return await self._complete_retrying_connection(messages, config)
 
     @retry(
         retry=retry_if_exception_type((APIConnectionError, RateLimitError)),
@@ -55,12 +76,21 @@ class OpenAICompatibleProvider(LLMProvider):
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
     )
-    async def complete(
-        self,
-        messages: list[LLMMessage],
-        config: LLMConfig,
+    async def _complete_retrying(self, messages: list[LLMMessage], config: LLMConfig) -> LLMResponse:
+        return await self._complete_once(messages, config)
+
+    @retry(
+        retry=retry_if_exception_type(APIConnectionError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
+    async def _complete_retrying_connection(
+        self, messages: list[LLMMessage], config: LLMConfig
     ) -> LLMResponse:
-        """Send chat completion request with automatic retry on transient errors."""
+        return await self._complete_once(messages, config)
+
+    async def _complete_once(self, messages: list[LLMMessage], config: LLMConfig) -> LLMResponse:
         openai_messages = self._to_openai_messages(messages, config.system_prompt)
 
         kwargs: dict = {
@@ -91,7 +121,9 @@ class OpenAICompatibleProvider(LLMProvider):
         )
 
         async with metrics.async_timer("llm.latency", provider=self._name, model=config.model):
-            response = await self._client.chat.completions.create(**kwargs)
+            raw = await self._client.chat.completions.with_raw_response.create(**kwargs)
+            response = raw.parse()
+        self._record_rate_limits(raw.headers)
 
         choice = response.choices[0]
         message = choice.message
@@ -137,6 +169,21 @@ class OpenAICompatibleProvider(LLMProvider):
         )
 
         return result
+
+    def _record_rate_limits(self, headers: Any) -> None:
+        state: dict[str, int] = {}
+        for header, key in (
+            ("x-ratelimit-remaining-tokens", "remaining_tokens"),
+            ("x-ratelimit-remaining-requests", "remaining_requests"),
+        ):
+            value = headers.get(header) if headers is not None else None
+            if value is not None:
+                try:
+                    state[key] = int(float(value))
+                except ValueError:
+                    pass
+        if state:
+            self.rate_limit_state = state
 
     async def stream(
         self,

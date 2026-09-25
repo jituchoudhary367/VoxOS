@@ -196,6 +196,17 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
             skipped_steps=skipped_steps,
         )
 
+    async def execute_step(
+        self,
+        step: TaskStep,
+        task: Task,
+        session_id: str | None,
+        permissions: PermissionManager | None,
+        prior_results: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Run one step through every security check (used by orchestration workers)."""
+        return await self._execute_step(step, task, session_id, permissions, prior_results)
+
     async def _execute_step(
         self,
         step: TaskStep,

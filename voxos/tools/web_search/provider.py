@@ -4,9 +4,13 @@ import asyncio
 from typing import Any
 
 try:
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS  # the maintained package
 except ImportError:
-    DDGS = None
+    try:
+        # Renamed to ddgs; the old package now returns no results.
+        from duckduckgo_search import DDGS
+    except ImportError:
+        DDGS = None
 
 from voxos.tools.web_search.base import SearchProvider, SearchResult
 from voxos.observability.logger import get_logger
@@ -17,7 +21,7 @@ log = get_logger(__name__)
 class DuckDuckGoSearchProvider(SearchProvider):
     async def search(self, query: str, max_results: int = 5) -> list[SearchResult]:
         if DDGS is None:
-            raise RuntimeError("duckduckgo-search is not installed.")
+            raise RuntimeError("ddgs is not installed.")
             
         loop = asyncio.get_running_loop()
         

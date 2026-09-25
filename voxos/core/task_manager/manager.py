@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
@@ -69,6 +69,9 @@ class TaskManager:
         self._active_tasks = self._tasks
         self._running_tasks: set[str] = set()
         self._running = False
+        # Builds the multi-agent orchestrator around this run's executor and
+        # overseer; replaceable in tests.
+        self.orchestrator_factory: Callable[[Any, Any], Any] = _default_orchestrator
 
     async def submit_task(self, user_request: str, session_id: str, db: Any = None) -> Task:
         """Compatibility wrapper for the original task-manager API."""
@@ -294,6 +297,7 @@ class TaskManager:
         from datetime import datetime, timezone
         from voxos.core.router import get_execution_router, ExecutionClass
         from voxos.core.task_manager.models import TaskPlan, TaskStep
+        from voxos.orchestration.graph import should_orchestrate
 
         # Stage 1: Listener — understand the request
         await self.transition(task, TaskStatus.UNDERSTANDING)
@@ -333,6 +337,11 @@ class TaskManager:
         task.execution_class = exec_class.value
         t3 = time.monotonic()
         task.routing_ms = (t3 - t2) * 1000
+
+        if exec_class == ExecutionClass.REASONING and should_orchestrate(
+            task.user_request, get_settings().agent.orchestrator
+        ):
+            return await self._run_orchestrated(task, executor, overseer, permissions, t0)
 
         if exec_class in (ExecutionClass.FAST_PATH, ExecutionClass.AUTOMATION):
             log.info("deterministic_path_selected", task_id=task.id, intent=listener_output.intent, exec_class=exec_class.value)
@@ -480,6 +489,64 @@ class TaskManager:
         log.error("task_failed", task_id=task.id, retries=task.retry_count)
         return task
 
+    async def _run_orchestrated(
+        self,
+        task: Task,
+        executor: Any,
+        overseer: Any,
+        permissions: PermissionManager | None,
+        t0: float,
+    ) -> Task:
+        """Coordinator → parallel Workers → Synthesizer for one request."""
+        import time
+
+        from voxos.core.task_manager.models import StepStatus, TaskPlan, TaskStep
+
+        task.execution_class = "ORCHESTRATED"
+        await self.transition(task, TaskStatus.EXECUTING)
+        orchestrator = self.orchestrator_factory(executor, overseer)
+        outcome = await orchestrator.run(
+            task.user_request,
+            session_id=task.session_id,
+            language=task.language,
+            permissions=permissions,
+        )
+
+        status_of = {r.goal_id: r.status for r in outcome.results}
+        step_status = {"done": StepStatus.COMPLETED, "failed": StepStatus.FAILED}
+        task.plan = TaskPlan(
+            goal=task.user_request,
+            steps=[
+                TaskStep(
+                    id=goal.id,
+                    action=goal.goal,
+                    depends_on=goal.depends_on,
+                    status=step_status.get(status_of.get(goal.id, ""), StepStatus.SKIPPED),
+                )
+                for goal in outcome.goals
+            ],
+        )
+        task.result = {
+            "reply": outcome.reply,
+            "workers": [r.model_dump() for r in outcome.results],
+        }
+        task.total_ms = (time.monotonic() - t0) * 1000
+        if outcome.succeeded:
+            await self.transition(task, TaskStatus.COMPLETED)
+        else:
+            task.error_info = {
+                "reason": "No part of the request succeeded",
+                "failures": [r.error for r in outcome.results if r.error],
+            }
+            await self.transition(task, TaskStatus.FAILED)
+        log.info(
+            "orchestrated_task_finished",
+            task_id=task.id,
+            goals=len(outcome.goals),
+            done=sum(r.status == "done" for r in outcome.results),
+        )
+        return task
+
     def stats(self) -> dict[str, int]:
         """Return task count by status."""
         counts: dict[str, int] = {}
@@ -487,6 +554,27 @@ class TaskManager:
             key = task.status.value
             counts[key] = counts.get(key, 0) + 1
         return counts
+
+
+def _default_orchestrator(executor: Any, overseer: Any) -> Any:
+    from voxos.core.memory.manager import get_memory_manager
+    from voxos.orchestration.graph import VoxOrchestrator
+    from voxos.orchestration.llm import RouterJsonLLM
+
+    settings = get_settings().agent
+
+    async def recall(session_id: str) -> list[str]:
+        memories = await get_memory_manager().get_relevant_memories(session_id, limit=5)
+        return [m.content for m in memories]
+
+    return VoxOrchestrator(
+        llm=RouterJsonLLM(),
+        executor=executor,
+        overseer=overseer,
+        recall=recall,
+        max_goals=settings.max_subgoals,
+        worker_steps=settings.worker_max_steps,
+    )
 
 
 # Singleton

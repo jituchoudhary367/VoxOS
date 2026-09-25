@@ -102,6 +102,10 @@ class LLMSettings(BaseSettings):
     provider: str = "groq"
     base_url: str = "https://api.groq.com/openai/v1"
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
+    # Extra keys from other accounts; limits are per account, so each adds a
+    # full quota. GROQ_API_KEYS is comma-separated.
+    groq_api_keys: str = Field(default="", alias="GROQ_API_KEYS")
+    groq_api_key_2: str = Field(default="", alias="GROQ_API_KEY_2")
     openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
     fast_model: str = "openai/gpt-oss-20b"
     strong_model: str = "openai/gpt-oss-120b"
@@ -115,6 +119,19 @@ class LLMSettings(BaseSettings):
             # Allow empty for dev/testing with mocks
             return v
         return v
+
+    def all_groq_keys(self) -> list[str]:
+        """Every configured Groq key, in order, without duplicates."""
+        candidates = [
+            *self.groq_api_keys.split(","),
+            self.groq_api_key,
+            self.groq_api_key_2,
+        ]
+        keys: list[str] = []
+        for key in (k.strip() for k in candidates):
+            if key and key not in keys:
+                keys.append(key)
+        return keys
 
 
 class STTSettings(BaseSettings):
@@ -216,6 +233,11 @@ class AgentSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AGENT_", extra="ignore")
 
     max_retries: int = 3
+    # Multi-agent graph for REASONING requests: "auto" = compound requests
+    # only, "graph" = all, "pipeline" = never (single Strategist plan).
+    orchestrator: Literal["auto", "graph", "pipeline"] = "auto"
+    max_subgoals: int = 4
+    worker_max_steps: int = 6
     task_timeout_seconds: int = 300
     step_timeout_seconds: int = 60
 

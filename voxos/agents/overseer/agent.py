@@ -140,6 +140,10 @@ class OverseerAgent(BaseAgent[OverseerInput, OverseerOutput]):
             summary=summary,
         )
 
+    async def verify_step(self, step_result: dict[str, Any], plan_step: Any | None) -> dict[str, Any]:
+        """Verify one executed step (used by orchestration workers)."""
+        return await self._verify_step(step_result, plan_step)
+
     async def _verify_step(
         self,
         step_result: dict[str, Any],

@@ -113,6 +113,15 @@ class ConversationService:
                 kind="info",
             )
 
+        # A multi-agent run already wrote one reply covering every part,
+        # including which parts failed and why.
+        result = getattr(task, "result", None)
+        if isinstance(result, dict) and isinstance(result.get("reply"), str) and result["reply"].strip():
+            return AssistantReply(
+                text=result["reply"].strip(),
+                kind="error" if status_name == "FAILED" else "success",
+            )
+
         if task.error_info:
             failures = [str(failure) for failure in task.error_info.get("failures", [])]
             reason = str(task.error_info.get("reason", ""))

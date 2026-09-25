@@ -13,9 +13,13 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
 
 try:
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS  # the maintained package
 except ImportError:
-    DDGS = None
+    try:
+        # Renamed to ddgs; the old package now returns no results.
+        from duckduckgo_search import DDGS
+    except ImportError:
+        DDGS = None
 
 from voxos.observability.logger import get_logger
 from voxos.tools.base import BaseTool, RiskLevel, ToolResult, ToolMetadata, VerificationType
@@ -50,7 +54,7 @@ class WebSearchTool(BaseTool):
     async def _execute(self, args: WebSearchArgs) -> ToolResult:
         if DDGS is None:
             return ToolResult.fail(
-                error="duckduckgo-search is not installed. Install with 'pip install duckduckgo-search'.",
+                error="ddgs is not installed. Install with 'pip install ddgs'.",
                 error_code="DEPENDENCY_MISSING",
             )
             

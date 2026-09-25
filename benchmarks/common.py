@@ -38,6 +38,9 @@ load_dotenv(ROOT / ".env", override=False)
 os.environ["VOX_WORKSPACE_ROOT"] = str(WORKSPACE)
 os.environ.pop("JARVIS_WORKSPACE_ROOT", None)
 os.environ.setdefault("LOG_LEVEL", "ERROR")
+# The published numbers measure the single-plan Strategist pipeline; the
+# multi-agent graph is opted into per experiment.
+os.environ.setdefault("AGENT_ORCHESTRATOR", "pipeline")
 sys.path.insert(0, str(ROOT))
 
 
@@ -130,6 +133,27 @@ def instrument_llm() -> None:
 
     provider.complete = counted
     provider._bench_wrapped = True
+
+    # With a key pool (voxos.llm.key_pool) the pool itself skips throttled
+    # keys. Let it wait out a fully throttled pool instead of falling back to
+    # the (absent) local Ollama, and record 429s and waits like the client
+    # hook below does, so they stay excluded from latency statistics.
+    pool = getattr(provider, "primary", None)
+    if pool is not None and hasattr(pool, "_on_rate_limit"):
+        pool._max_wait_s = 600.0
+        on_rate_limit, sleep = pool._on_rate_limit, pool._sleep
+
+        def counted_rate_limit(slot, error):
+            COUNTER.rate_limited += 1
+            on_rate_limit(slot, error)
+
+        async def counted_sleep(seconds):
+            w0 = time.perf_counter()
+            await sleep(seconds)
+            COUNTER.rate_limit_wait_ms += (time.perf_counter() - w0) * 1000
+
+        pool._on_rate_limit = counted_rate_limit
+        pool._sleep = counted_sleep
 
     # The provider retries 429s internally (tenacity) and then falls back to a
     # local Ollama. Count throttled HTTP calls at the client so runs that were
