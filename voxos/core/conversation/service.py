@@ -29,6 +29,8 @@ _SESSION_TURNS: dict[str, list[dict[str, str]]] = {}
 _WRITE_TAILS: dict[str, asyncio.Task] = {}
 
 
+_RETRY = re.compile(r"\b(?:try (?:it )?(?:again|now)|retry|redo|do it again|one more time)\b", re.IGNORECASE)
+
 _MEDIA_DONE = {
     "pause": "Paused", "stop": "Stopped", "play": "Playing", "toggle": "Toggled",
     "mute": "Muted", "unmute": "Unmuted", "next": "Skipped to the next video in",
@@ -124,7 +126,13 @@ class ConversationService:
                         conversation_history=await self._recent_context(session_id),
                     )
                 )
-                needs_action = listener_output.requires_execution or asks_about_screen(clean_text)
+                needs_action = (
+                    listener_output.requires_execution
+                    or asks_about_screen(clean_text)
+                    # "try again" was classified as chat and answered
+                    # "How can I help?"; a retry always means the last task.
+                    or bool(_RETRY.search(clean_text))
+                )
                 if needs_action and self._can_run_pipeline():
                     return await self._run_task(session_id, clean_text, listener_output)
 

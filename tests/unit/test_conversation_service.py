@@ -723,3 +723,24 @@ async def test_plain_follow_up_chat_still_chats() -> None:
 
     assert reply.text == "Because the command had no app name."
     assert manager.was_called is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text", ["try again", "i said try again", "retry", "do it again"])
+async def test_retry_goes_to_the_agents_not_chat(text) -> None:
+    """ "try again" was answered "How can I help?" by chat."""
+    from voxos.core.conversation.service import ConversationService
+
+    manager = _TaskManager()
+
+    async def responder(_text, _context):
+        raise AssertionError("a retry must not go to chat")
+
+    service = ConversationService(
+        task_manager=manager, history=_History(), listener=_ChatListener(), chat_responder=responder,
+        strategist=object(), executor=object(), overseer=object(), permissions=object(),
+    )
+
+    await service.handle_text(text, str(uuid.uuid4()))
+
+    assert manager.was_called
