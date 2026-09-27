@@ -607,11 +607,24 @@ def _default_orchestrator(executor: Any, overseer: Any) -> Any:
         memories = await get_memory_manager().get_relevant_memories(session_id, limit=5)
         return [m.content for m in memories]
 
+    async def observe() -> tuple[str, list[str]]:
+        from voxos.tools.browser import tools as browser
+
+        state = await browser.browser_tabs_state()
+        return (browser.describe_tabs(state) if state else ""), [t["tab"] for t in state]
+
+    def history(session_id: str) -> list[dict[str, str]]:
+        from voxos.core.conversation.service import recent_turns
+
+        return recent_turns(session_id)
+
     return VoxOrchestrator(
         llm=RouterJsonLLM(),
         executor=executor,
         overseer=overseer,
         recall=recall,
+        observe=observe,
+        history=history,
         max_goals=settings.max_subgoals,
         worker_steps=settings.worker_max_steps,
     )

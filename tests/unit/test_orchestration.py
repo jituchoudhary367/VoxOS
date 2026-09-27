@@ -602,3 +602,17 @@ async def test_single_worker_answer_is_also_cleaned():
     )
 
     assert reply == "See for details."
+
+
+async def test_out_of_steps_worker_answers_with_what_it_has():
+    llm = ScriptedLLM(
+        worker=[_call("system.get_time")] * 3 + [_finish("Best effort: it is 1 PM.")],
+    )
+
+    result = await Worker(llm, FakeExecutor(), FakeOverseer(), max_steps=3, extra_steps=0).run(
+        GOAL, request="x", session_id="s"
+    )
+
+    assert result.status == "done"
+    assert result.answer == "Best effort: it is 1 PM."
+    assert "out of steps" in llm.prompts["worker"][-1].lower()

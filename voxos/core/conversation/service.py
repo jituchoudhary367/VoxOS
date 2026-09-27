@@ -8,6 +8,7 @@ from typing import Any, Protocol
 
 from voxos.agents.listener.agent import ListenerInput
 from voxos.core.conversation.models import AssistantReply
+from voxos.core.router import asks_about_screen
 from voxos.llm.base import LLMMessage
 from voxos.llm.router import TaskComplexity, get_llm_router
 from voxos.observability.logger import get_logger
@@ -24,6 +25,17 @@ HISTORY_READ_TIMEOUT_S = 1.5
 CONTEXT_TURNS = 12
 _SESSION_TURNS: dict[str, list[dict[str, str]]] = {}
 _WRITE_TAILS: dict[str, asyncio.Task] = {}
+
+
+_MEDIA_DONE = {
+    "pause": "Paused", "stop": "Stopped", "play": "Playing", "toggle": "Toggled",
+    "mute": "Muted", "unmute": "Unmuted", "next": "Skipped to the next video in",
+}
+
+
+def recent_turns(session_id: str, limit: int = CONTEXT_TURNS) -> list[dict[str, str]]:
+    """This session's latest turns as held in memory (no database call)."""
+    return [dict(turn) for turn in _SESSION_TURNS.get(session_id, [])[-limit:]]
 
 
 class ConversationHistory(Protocol):
@@ -91,7 +103,8 @@ class ConversationService:
                         conversation_history=await self._recent_context(session_id),
                     )
                 )
-                if listener_output.requires_execution and self._can_run_pipeline():
+                needs_action = listener_output.requires_execution or asks_about_screen(clean_text)
+                if needs_action and self._can_run_pipeline():
                     task = await self._task_manager.submit_task(
                         user_request=clean_text,
                         session_id=session_id,
@@ -221,6 +234,13 @@ class ConversationService:
         engine, query = data.get("engine"), data.get("query")
         if engine and query:
             return f"Searched {str(engine).title()} for {query}.", "search"
+
+        if data.get("action") in _MEDIA_DONE and "media" in data:
+            what = str(data.get("title") or "").strip()
+            if data.get("tab") is None:  # sent to another app via the media keys
+                return f"Sent the {data['action']} command to your media player.", "media"
+            done = _MEDIA_DONE[data["action"]]
+            return (f"{done} {what}." if what else f"{done} the video."), "media"
 
         if "formatted" in data or ("hour" in data and "minute" in data):
             return ConversationService._time_sentence(data), None

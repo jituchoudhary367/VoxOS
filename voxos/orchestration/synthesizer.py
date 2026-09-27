@@ -14,7 +14,8 @@ from voxos.orchestration.worker import WorkerResult
 log = get_logger(__name__)
 
 SYNTH_PROMPT = """You are Vox, a voice assistant. Several agents worked on parts of the user's
-request. Write ONE short spoken reply (at most 4 sentences, no markdown, no lists, no URLs) that
+request. Write ONE short spoken reply (at most 3 sentences, name at most 3 items, no markdown, no
+lists, no URLs) that
 gives the user the actual findings — the real numbers, names and headlines, not "I found it" — and
 plainly says what failed and why. Never claim a failed part succeeded.
 Use ONLY facts written in the results below. Never add names, prices, numbers or details that are

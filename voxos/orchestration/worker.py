@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from pathlib import Path
 from typing import Any, Literal
 
@@ -40,8 +41,15 @@ metrics = get_metrics()
 # The world said no. Retrying with other tools would be routing around it.
 STOP_ERRORS = frozenset({"BLOCKED", "SECURITY_BLOCKED", "PERMISSION_DENIED", "APPROVAL_REJECTED"})
 OBSERVATION_CHARS = 1500
+# Page text is the observation for a page read; 1500 characters of it held
+# only the site's header, so a worker "found no laptops" on a results page.
+PAGE_TEXT_CHARS = 4000
+PAGE_TEXT_TOOLS = frozenset({"browser.extract", "web.extract", "document.read", "os.read_file"})
 # Tools that fetch a whole page; one successful read per worker is enough.
-PAGE_READERS = frozenset({"web.extract", "browser.extract"})
+# Only web research is capped: reading the tab on screen (browser.extract)
+# is how a worker checks its own browser work, and capping it made an Amazon
+# search report "already read a page" instead of its results.
+PAGE_READERS = frozenset({"web.extract"})
 
 SHELL_TOOL = "os.shell_command"
 # Shell commands wait for the user's approval, so a worker only gets the
@@ -91,10 +99,20 @@ The user's home folder is {home}.
 
 Rules:
 - Never use os.shell_command when another tool can do the job: shell commands wait for the user's approval.
+- The user is in India: use amazon.in (amazon.com shows an error page there), flipkart.com, prices in ₹.
+  For a price limit on Amazon add &rh=p_36%3A-<max price in paise>, e.g. under ₹50,000:
+  https://www.amazon.in/s?k=hp+laptop&rh=p_36%3A-5000000
+- Report what the page actually shows, even if it is not a perfect match (sponsored items, a few
+  over budget). Do not repeat the same search more than twice.
 - To search inside a website, open its search results URL directly instead of typing into the page,
   e.g. https://www.amazon.in/s?k=asus+laptop, https://www.flipkart.com/search?q=asus+laptop,
   https://www.youtube.com/results?search_query=lofi+music. For a general web search use browser.search.
 - A browser action is done once the page is open: finish then, saying what is on screen.
+- You work in your own browser tab (or the tab you were given): open/search tools navigate IT, so a
+  follow-up search on the same site replaces the page in that tab, as the user expects.
+- To pause, play, stop, mute or skip a video or music, use browser.media (never open or close apps for that).
+- To know what the page shows, read it with browser.extract; use vision.look only for things text
+  cannot tell (images, video, layout) or apps outside the browser.
 - For news and facts, answer from the search result snippets. Open at most ONE page, and only when
   the snippets do not contain the answer. Speed matters: the user is waiting.
 - Do ONLY your goal. Other agents are handling the rest of the user's request at the same time; the full request is shown only for context.
@@ -146,7 +164,18 @@ class Worker:
         prefixes = tuple(f"- {family}." for family in families)
         return "\n".join(line for line in lines if line.startswith(prefixes))
 
-    async def run(
+    async def run(self, goal: SubGoal, **kwargs: Any) -> WorkerResult:
+        """Work the goal in its browser tab: the one the Coordinator named, else a new one."""
+        from voxos.tools.browser.tabs import browser_tab
+        from voxos.tools.browser.tools import label_tab
+
+        key = goal.tab or f"{goal.id}-{uuid.uuid4().hex[:8]}"
+        with browser_tab(key):
+            result = await self._run(goal, **kwargs)
+        label_tab(key, goal.goal)  # so a follow-up can find this tab
+        return result
+
+    async def _run(
         self,
         goal: SubGoal,
         *,
@@ -211,6 +240,24 @@ class Worker:
                         error=observation.get("error") or observation["error_code"],
                         blocked=True, steps=observations, reflections=reflections,
                     )
+
+            if answer is None and observations and len(observations) >= budget:
+                # Out of steps while still chasing a perfect result (Amazon
+                # kept showing sponsored laptops over budget): what the pages
+                # showed is still worth saying, so ask for it once.
+                decision = self._normalize(await self._llm.ask(
+                    "worker",
+                    system,
+                    self._turn_prompt(
+                        goal, request, context or [], observations,
+                        "You are out of steps. Finish NOW with the best answer the results above "
+                        "support, and say plainly what is missing.",
+                        language, session_id,
+                    ),
+                    complexity=TaskComplexity.STANDARD,
+                ))
+                if decision.get("action") == "finish" or not decision.get("tool"):
+                    answer = answer_of(decision) or None
 
             # An answer drawn from a tool result that succeeded and passed the
             # Overseer's check needs no critic; skipping it saves an LLM round
@@ -357,8 +404,9 @@ class Worker:
             args = json.dumps(o.get("arguments") or {}, ensure_ascii=False, default=str)
             if o.get("status") == "SUCCESS":
                 data = json.dumps(o.get("data"), ensure_ascii=False, default=str)
-                if len(data) > OBSERVATION_CHARS:
-                    data = data[:OBSERVATION_CHARS] + "…(truncated)"
+                limit = PAGE_TEXT_CHARS if o.get("tool") in PAGE_TEXT_TOOLS else OBSERVATION_CHARS
+                if len(data) > limit:
+                    data = data[:limit] + "…(truncated)"
                 line = f"{i}. {o['tool']}({args}) → OK: {data}"
                 if o.get("verified") is False:
                     line += f"\n   but verification failed: {o.get('verification')}"

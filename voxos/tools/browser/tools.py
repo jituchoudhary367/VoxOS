@@ -47,7 +47,103 @@ _page_instance = None
 _init_lock = asyncio.Lock()
 # One tab per worker / command (see voxos.tools.browser.tabs).
 _tabs: dict[str, Any] = {}
+_tab_labels: dict[str, str] = {}
 _last_page = None
+
+_MEDIA_STATE_JS = """() => {
+  const media = [...document.querySelectorAll('video, audio')];
+  if (!media.length) return 'none';
+  return media.some(m => !m.paused && !m.ended) ? 'playing' : 'paused';
+}"""
+
+
+async def goto(page: Any, url: str, *, timeout_ms: int = 25000) -> None:
+    """Navigate, retrying once when the site answers with a download.
+
+    amazon.in intermittently served a search URL as a file download, which
+    Playwright reports as "Download is starting"; the same URL loads on the
+    next attempt.
+    """
+    for attempt in range(2):
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            return
+        except Exception as e:
+            if "Download is starting" not in str(e):
+                raise
+            if attempt == 1:
+                raise RuntimeError(
+                    f"{url} started a file download instead of loading a page (twice)."
+                ) from e
+            log.warning("browser_navigation_became_download_retrying", url=url)
+            await asyncio.sleep(1.5)
+
+
+def label_tab(key: str, label: str) -> None:
+    """Remember what a tab was opened for, so follow-ups can find it."""
+    if key in _tabs:
+        _tab_labels[key] = label[:120]
+
+
+def page_for_tab(key: str) -> Any | None:
+    page = _tabs.get(key)
+    return page if page is not None and not page.is_closed() else None
+
+
+async def browser_tabs_state() -> list[dict[str, Any]]:
+    """Every open tab in Vox's browser: what it shows and whether media plays.
+
+    This is Vox's view of "the screen" for follow-up requests ("pause it",
+    "search more from another company"). Tabs the user opened by hand in the
+    same browser are included under generated ids.
+    """
+    if _context_instance is None:
+        return []
+    known = {id(page): key for key, page in _tabs.items()}
+    try:
+        pages = list(_context_instance.pages)
+    except Exception:
+        pages = [p for p in _tabs.values()]
+    state: list[dict[str, Any]] = []
+    for n, page in enumerate(pages):
+        if page.is_closed() or page.url == "about:blank":
+            continue
+        key = known.get(id(page))
+        if key is None:
+            key = f"tab-{n + 1}"
+            _tabs[key] = page
+        try:
+            title = await asyncio.wait_for(page.title(), timeout=1.5)
+        except Exception:
+            title = ""
+        try:
+            media = await asyncio.wait_for(page.evaluate(_MEDIA_STATE_JS), timeout=1.5)
+        except Exception:
+            media = "unknown"
+        state.append({
+            "tab": key,
+            "title": title,
+            "url": page.url,
+            "media": media,
+            "active": page is _last_page,
+            "opened_for": _tab_labels.get(key, ""),
+        })
+    return state
+
+
+def describe_tabs(state: list[dict[str, Any]]) -> str:
+    """One line per tab for an LLM prompt."""
+    if not state:
+        return "No browser tabs are open."
+    lines = []
+    for t in state:
+        flags = [f"media {t['media']}"] if t["media"] not in ("none", "unknown") else []
+        if t["active"]:
+            flags.append("most recently used")
+        extra = f" ({', '.join(flags)})" if flags else ""
+        purpose = f" — opened for: {t['opened_for']}" if t["opened_for"] else ""
+        lines.append(f'- tab "{t["tab"]}": {t["title"] or "(untitled)"} <{t["url"]}>{extra}{purpose}')
+    return "\n".join(lines)
 
 
 async def _get_browser_session(navigate: bool = False) -> "Page":
@@ -123,7 +219,9 @@ async def _ensure_browser() -> "Page":
             _browser_instance = await _playwright_instance.chromium.launch(
                 headless=False,  # Visible browser
                 channel="chrome", # Use the system's Google Chrome
-                args=["--start-maximized"],
+                # Without the autoplay flag a video opened by Vox (not by a
+                # click) often stays paused, so "play that" did nothing.
+                args=["--start-maximized", "--autoplay-policy=no-user-gesture-required"],
             )
 
         _context_instance = await _browser_instance.new_context(
@@ -186,7 +284,7 @@ class BrowserOpenTool(BaseTool):
 
             page = await _get_browser_session(navigate=True)
             log.info("browser_navigate", url=url)
-            await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            await goto(page, url)
             title = await page.title()
             actual_url = page.url
             return ToolResult.ok(data={"title": title, "url": actual_url})
@@ -252,7 +350,7 @@ class BrowserSearchTool(BaseTool):
         try:
             page = await _get_browser_session(navigate=True)
             log.info("browser_search", engine=engine, query=args.query)
-            await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            await goto(page, url)
             title = await page.title()
             if engine == "google" and "/sorry/" in page.url:
                 return ToolResult.fail(
@@ -396,9 +494,20 @@ class BrowserExtractTool(BaseTool):
                 return ToolResult.fail("No page loaded", "NO_PAGE")
 
             selector = args.selector or "body"
+            # For the whole page, read the main content: body text starts with
+            # headers and menus (on Amazon the first 1500 characters had no
+            # product at all), so drop navigation and prefer the main region.
             text = await page.evaluate(f"""() => {{
                 if ("{selector}" === "body") {{
-                    return document.body.innerText;
+                    const main = document.querySelector(
+                        'main, [role="main"], #search, #content, #contents, article') || document.body;
+                    const skip = main.querySelectorAll(
+                        'nav, header, footer, aside, [role="navigation"], [role="banner"], [role="contentinfo"]');
+                    skip.forEach(el => el.setAttribute('data-vox-hidden', el.style.display));
+                    skip.forEach(el => {{ el.style.display = 'none'; }});
+                    const text = main.innerText;
+                    skip.forEach(el => {{ el.style.display = el.getAttribute('data-vox-hidden'); el.removeAttribute('data-vox-hidden'); }});
+                    return text.replace(/\\n{{3,}}/g, '\\n\\n');
                 }}
                 const els = document.querySelectorAll("{selector}");
                 return Array.from(els).map(el => el.innerText).join('\\n');
@@ -439,16 +548,20 @@ class BrowserNewTabTool(BaseTool):
         return BrowserNewTabArgs
 
     async def _execute(self, args: BrowserNewTabArgs) -> ToolResult:
-        global _page_instance
+        global _last_page
         try:
-            page = await _get_browser_session()
-            ctx = page.context
-            new_page = await ctx.new_page()
-            _page_instance = new_page  # Switch active page
+            if current_tab() is not None:
+                # Inside a task the task already owns a fresh tab (or the one
+                # the user pointed at); a second, unkeyed tab was a stray
+                # duplicate nobody could refer to afterwards.
+                new_page = await _get_browser_session(navigate=True)
+            else:
+                new_page = await (await _ensure_browser()).context.new_page()
+                _last_page = new_page
 
             if args.url:
                 url = args.url if args.url.startswith("http") else "https://" + args.url
-                await new_page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                await goto(new_page, url)
 
             return ToolResult.ok(data={"opened_tab": True, "url": new_page.url})
         except Exception as e:

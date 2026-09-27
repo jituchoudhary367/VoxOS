@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from voxos.agents.base import BaseAgent
 from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
+from voxos.core.router import is_follow_up
 from voxos.llm.base import LLMMessage
 from voxos.llm.router import TaskComplexity, get_llm_router
 from voxos.observability.logger import get_logger
@@ -109,6 +110,32 @@ _ENGINES = ("google", "youtube", "bing", "wikipedia")
 _ENGINE_FIRST = re.compile(rf"^(?:on\s+)?({'|'.join(_ENGINES)})\s+(?:for\s+)?(.+)$")
 _ENGINE_LAST = re.compile(rf"^(.+?)\s+(?:on|in|using)\s+({'|'.join(_ENGINES)})$")
 _THE_WEB = re.compile(r"^(?:the\s+)?(?:web|internet|net|online)\s+(?:for\s+)?(.+)$")
+
+
+# Media commands whose meaning is certain. "play that" / "play it" are not
+# here: they name something from earlier, which only the AI can resolve.
+_MEDIA_THING = r"(?:the\s+)?(?:music|song|video|track|audio|playback|sound)"
+_MEDIA_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("unmute", re.compile(rf"^unmute(?:\s+(?:it|{_MEDIA_THING}))?$")),
+    ("mute", re.compile(rf"^mute(?:\s+(?:it|{_MEDIA_THING}))?$")),
+    ("next", re.compile(
+        rf"^(?:(?:play\s+)?next\s+(?:song|track|video)|skip(?:\s+(?:this|the))?(?:\s+(?:song|track|video))?)$"
+    )),
+    ("pause", re.compile(rf"^pause(?:\s+(?:it|{_MEDIA_THING}))?$")),
+    ("stop", re.compile(rf"^stop\s+(?:it|playing|{_MEDIA_THING})$")),
+    ("play", re.compile(
+        rf"^(?:play|play again|unpause|resume(?:\s+{_MEDIA_THING})?|continue(?:\s+playing)?)$"
+    )),
+)
+_POLITE = re.compile(r"^(?:please|vox|hey vox)\s+|\s+(?:please|now)$")
+
+
+def _media_action(text_clean: str) -> str | None:
+    text = _POLITE.sub("", text_clean.strip()).strip()
+    for action, pattern in _MEDIA_PATTERNS:
+        if pattern.match(text):
+            return action
+    return None
 
 
 def _search_target(text: str) -> tuple[str, str]:
@@ -266,7 +293,14 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
         # Only a search and nothing else. "search the web for X and also tell
         # me my CPU" is two jobs; typing the whole sentence into Bing was the
         # bug, so anything with a further action goes to the AI instead.
-        if browser_search and not _MORE_ACTIONS.search(f" {browser_search.group(1)} "):
+        # A search that refers back ("search more ... from another company",
+        # "search that on amazon") has to be resolved with the conversation
+        # and the open tabs, which only the AI sees.
+        if (
+            browser_search
+            and not _MORE_ACTIONS.search(f" {browser_search.group(1)} ")
+            and not is_follow_up(browser_search.group(1))
+        ):
             query, engine = _search_target(browser_search.group(1).strip())
             if query:
                 return ListenerOutput(
@@ -281,6 +315,13 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
         complex_keywords = [" and ", " then ", " also ", " after ", " search ", " play ", " summarize ", " find "]
         if any(kw in text_lower for kw in complex_keywords):
             return None
+
+        # ── Media: pause / play / stop / skip / mute what is playing ─────────
+        media_action = _media_action(text_clean)
+        if media_action:
+            return ListenerOutput(intent="media_control", language="en",
+                                  entities={"action": media_action},
+                                  requires_execution=True, confidence=1.0)
 
         # ── Greetings ─────────────────────────────────────────────────────────
         GREETINGS = {"hi", "hello", "hey", "hey voxos", "hi voxos", "hello voxos",

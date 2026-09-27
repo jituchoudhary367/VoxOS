@@ -75,6 +75,8 @@ FAST_PATH_INTENT_TO_TOOL: dict[str, str] = {
     "delete_file":       "os.delete_file",
     "search_files":      "os.search_files",
     "find_files":        "os.search_files",
+    # Media: pause / play / stop / next / mute whatever is playing
+    "media_control":     "browser.media",
     # Clipboard
     "read_clipboard":    "desktop.clipboard_read",
     "paste_clipboard":   "desktop.clipboard_read",
@@ -127,6 +129,40 @@ _COMPOUND_RE = re.compile(r"\b(?:and|then|also|after that|afterwards|followed by
 def is_compound_request(text: str) -> bool:
     """True when a request strings several actions together."""
     return bool(_COMPOUND_RE.search(text.lower()))
+
+
+# Words that point at earlier turns or at what is on screen.
+# "it" / "now" alone are too common ("what time is it"), so they only count
+# after an action verb ("close it") or in "try now".
+_FOLLOW_UP_RE = re.compile(
+    r"\b(?:that|this|those|them|these|more|another|anther|other|else|again|same|instead|"
+    r"previous|earlier|back)\b"
+    r"|\b(?:close|open|play|stop|pause|delete|save|search|send|share|do|redo|undo|read|show|use)\s+it\b"
+    r"|\btry\s+(?:now|again|it)\b|^(?:retry|redo|undo)\b"
+    # Questions about what is on screen depend on the screen, not the words
+    # ("what is shown on the amazon page" was guessed as a CPU question).
+    r"|\b(?:screen|page|tab|window|showing|shown|visible|playing)\b"
+)
+
+
+_SCREEN_RE = re.compile(r"\b(?:screen|page|tab|window|showing|shown|visible|displayed|playing)\b")
+
+
+def asks_about_screen(text: str) -> bool:
+    """True for questions only answerable by looking ("what is shown on the page").
+
+    The listener tends to call these chat, and chat answers from memory.
+    """
+    return bool(_SCREEN_RE.search(text.lower()))
+
+
+def is_follow_up(text: str) -> bool:
+    """True when a request only makes sense with the conversation or screen.
+
+    "search more laptops from another company", "play that", "try now":
+    none of these can be run from the words alone.
+    """
+    return bool(_FOLLOW_UP_RE.search(text.lower()))
 
 
 def _arguments_valid(tool_name: str, entities: dict[str, Any]) -> bool:
@@ -184,7 +220,12 @@ class ExecutionRouter:
 
         if source != "rules":
             tool_name = self.fast_path_tool(intent) or self.automation_tool(intent)
-            if not tool_name or is_compound_request(request_text) or not _arguments_valid(tool_name, entities or {}):
+            if (
+                not tool_name
+                or is_compound_request(request_text)
+                or is_follow_up(request_text)
+                or not _arguments_valid(tool_name, entities or {})
+            ):
                 log.info("llm_intent_demoted_to_reasoning", intent=intent, tool=tool_name)
                 return ExecutionClass.REASONING
 

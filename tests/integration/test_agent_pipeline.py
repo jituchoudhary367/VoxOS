@@ -3,6 +3,13 @@ Integration tests for the Agent Pipeline in TaskManager.
 """
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _strategist_pipeline(monkeypatch):
+    """These tests cover the single-plan Strategist pipeline; the app default
+    sends reasoning requests to the multi-agent graph instead."""
+    monkeypatch.setenv("AGENT_ORCHESTRATOR", "pipeline")
 import uuid
 import asyncio
 

@@ -683,3 +683,43 @@ async def test_pipeline_reuses_the_listener_result_instead_of_a_second_llm_call(
     await service.handle_text("open notepad", str(uuid.uuid4()))
 
     assert CountingListener.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_question_about_the_screen_looks_instead_of_chatting() -> None:
+    """ "what is shown on the amazon page" was answered from memory."""
+    from voxos.core.conversation.service import ConversationService
+
+    manager = _TaskManager()
+
+    async def responder(_text, _context):
+        raise AssertionError("must not answer from memory")
+
+    service = ConversationService(
+        task_manager=manager, history=_History(), listener=_ChatListener(), chat_responder=responder,
+        strategist=object(), executor=object(), overseer=object(), permissions=object(),
+    )
+
+    await service.handle_text("what is shown on the amazon page right now", str(uuid.uuid4()))
+
+    assert manager.was_called
+
+
+@pytest.mark.asyncio
+async def test_plain_follow_up_chat_still_chats() -> None:
+    from voxos.core.conversation.service import ConversationService
+
+    manager = _TaskManager()
+
+    async def responder(_text, _context):
+        return "Because the command had no app name."
+
+    service = ConversationService(
+        task_manager=manager, history=_History(), listener=_ChatListener(), chat_responder=responder,
+        strategist=object(), executor=object(), overseer=object(), permissions=object(),
+    )
+
+    reply = await service.handle_text("why", str(uuid.uuid4()))
+
+    assert reply.text == "Because the command had no app name."
+    assert manager.was_called is False

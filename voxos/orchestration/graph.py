@@ -15,6 +15,7 @@ permissions, approvals) and LLM calls through the LLMRouter (key pool).
 
 from __future__ import annotations
 
+import asyncio
 import operator
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Awaitable, Callable, TypedDict
@@ -35,6 +36,10 @@ log = get_logger(__name__)
 metrics = get_metrics()
 
 Recall = Callable[[str], Awaitable[list[str]]]
+# () -> (tab list for prompts, tab ids)
+Observe = Callable[[], Awaitable[tuple[str, list[str]]]]
+# session id -> recent turns [{"role", "content"}]
+History = Callable[[str], list[dict[str, str]]]
 
 
 def should_orchestrate(text: str, mode: str) -> bool:
@@ -55,6 +60,9 @@ class _State(TypedDict, total=False):
     session_id: str
     language: str
     memories: list[str]
+    screen: str
+    tab_ids: list[str]
+    history: list[dict[str, str]]
     goals: list[dict[str, Any]]
     results: Annotated[list[dict[str, Any]], operator.add]
     reply: str
@@ -79,6 +87,14 @@ async def _no_memories(session_id: str) -> list[str]:
     return []
 
 
+async def _no_screen() -> tuple[str, list[str]]:
+    return "", []
+
+
+def _no_history(session_id: str) -> list[dict[str, str]]:
+    return []
+
+
 class VoxOrchestrator:
     def __init__(
         self,
@@ -87,11 +103,15 @@ class VoxOrchestrator:
         executor: Any,
         overseer: Any,
         recall: Recall | None = None,
+        observe: Observe | None = None,
+        history: History | None = None,
         max_goals: int = 4,
         worker_steps: int = 6,
     ) -> None:
         self._llm = llm
         self._recall = recall or _no_memories
+        self._observe = observe or _no_screen
+        self._history = history or _no_history
         self._max_goals = max_goals
         self._worker = Worker(llm, executor, overseer, max_steps=worker_steps)
         self._graph = self._build()
@@ -135,12 +155,30 @@ class VoxOrchestrator:
     # ── nodes ────────────────────────────────────────────────────────────────
 
     async def _recall_node(self, state: _State) -> dict[str, Any]:
+        """What Vox knows before planning: memories, open tabs, the conversation."""
+        async def memories() -> list[str]:
+            try:
+                return await self._recall(state["session_id"])
+            except Exception as e:  # noqa: BLE001 — memory is a nice-to-have
+                log.warning("orchestration_recall_failed", error=str(e))
+                return []
+
+        async def screen() -> tuple[str, list[str]]:
+            try:
+                return await asyncio.wait_for(self._observe(), timeout=5)
+            except Exception as e:  # noqa: BLE001 — planning works without it
+                log.warning("orchestration_observe_failed", error=str(e) or type(e).__name__)
+                return "", []
+
+        found, (screen_text, tab_ids) = await asyncio.gather(memories(), screen())
         try:
-            memories = await self._recall(state["session_id"])
-        except Exception as e:  # noqa: BLE001 — memory is a nice-to-have
-            log.warning("orchestration_recall_failed", error=str(e))
-            memories = []
-        return {"memories": memories}
+            history = self._history(state["session_id"])
+        except Exception:  # noqa: BLE001
+            history = []
+        # The current request is already the last user turn; don't show it twice.
+        if history and history[-1].get("content") == state["request"]:
+            history = history[:-1]
+        return {"memories": found, "screen": screen_text, "tab_ids": tab_ids, "history": history}
 
     async def _coordinate_node(self, state: _State) -> dict[str, Any]:
         goals = await decompose(
@@ -149,6 +187,9 @@ class VoxOrchestrator:
             llm=self._llm,
             language=state.get("language", "en"),
             max_goals=self._max_goals,
+            screen=state.get("screen", ""),
+            tab_ids=state.get("tab_ids", []),
+            history=state.get("history", []),
         )
         return {"goals": [g.model_dump() for g in goals]}
 
@@ -180,7 +221,7 @@ class VoxOrchestrator:
                 "goal": goal,
                 "context": list(state.get("memories", [])) + [
                     f"Result of '{by_id[d]['goal']}': {by_id[d]['answer']}" for d in goal["depends_on"]
-                ],
+                ] + ([f"Browser tabs open now:\n{state['screen']}"] if state.get("screen") else []),
                 # With several goals each worker sees only its own, or it
                 # starts doing the other workers' parts too.
                 "request": state["request"] if len(state.get("goals", [])) == 1 else "",

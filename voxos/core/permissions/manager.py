@@ -82,6 +82,8 @@ TOOL_PERMISSION_MAP: dict[str, Permission] = {
     "browser.close_tab": Permission.BROWSER_NAVIGATE,
     "browser.back": Permission.BROWSER_NAVIGATE,
     "browser.scroll": Permission.BROWSER_NAVIGATE,
+    "browser.media": Permission.BROWSER_NAVIGATE,
+    "vision.look": Permission.SYSTEM_INFO,
     "application.open": Permission.APPLICATION_CONTROL,
     "application.close": Permission.APPLICATION_CONTROL,
     "application.list": Permission.SYSTEM_INFO,

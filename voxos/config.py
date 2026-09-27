@@ -115,6 +115,8 @@ class LLMSettings(BaseSettings):
     openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
     fast_model: str = "openai/gpt-oss-20b"
     strong_model: str = "openai/gpt-oss-120b"
+    # Accepts images; used by vision.look (LLM_VISION_MODEL).
+    vision_model: str = "qwen/qwen3.8-27b"
     max_tokens: int = 4096
     temperature: float = 0.1
 
@@ -256,7 +258,10 @@ class AgentSettings(BaseSettings):
     max_retries: int = 3
     # Multi-agent graph for REASONING requests: "auto" = compound requests
     # only, "graph" = all, "pipeline" = never (single Strategist plan).
-    orchestrator: Literal["auto", "graph", "pipeline"] = "auto"
+    # "graph" by default: only the multi-agent graph sees the conversation and
+    # the open browser tabs, which follow-ups ("pause it", "search more from
+    # another company") need. Benchmarks pin "pipeline".
+    orchestrator: Literal["auto", "graph", "pipeline"] = "graph"
     max_subgoals: int = 4
     worker_max_steps: int = 6
     task_timeout_seconds: int = 300
