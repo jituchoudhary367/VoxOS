@@ -68,9 +68,14 @@ class FallbackProvider(LLMProvider):
         try:
             return await self.primary.complete(messages, config)
         except (APIConnectionError, RateLimitError) as e:
-            log.warning("primary_llm_failed_using_fallback", error=str(e), fallback=self.fallback.name)
+            log.warning("primary_llm_failed_using_fallback", error=str(e)[:300], fallback=self.fallback.name)
             fallback_config = self._get_fallback_config(config)
-            return await self.fallback.complete(messages, fallback_config)
+            try:
+                return await self.fallback.complete(messages, fallback_config)
+            except APIConnectionError:
+                # The local fallback (Ollama) is not running. Report the real
+                # cause — the quota — not "Connection error".
+                raise e from None
 
     async def stream(self, messages: list[LLMMessage], config: LLMConfig) -> AsyncIterator[str]:
         try:
@@ -149,15 +154,20 @@ class LLMRouter:
 def build_primary_provider(settings: Any) -> LLMProvider:
     """One provider per configured key, pooled; a single key is a pool of one."""
     keys = settings.all_groq_keys() or [""]
-    return KeyPoolProvider([
-        OpenAICompatibleProvider(
-            base_url=settings.base_url,  # Usually Groq
-            api_key=key,
-            provider_name=settings.provider,
-            retry_rate_limits=False,
-        )
-        for key in keys
-    ])
+    return KeyPoolProvider(
+        [
+            OpenAICompatibleProvider(
+                base_url=settings.base_url,  # Usually Groq
+                api_key=key,
+                provider_name=settings.provider,
+                retry_rate_limits=False,
+            )
+            for key in keys
+        ],
+        # Groq quotas are per model: when one gpt-oss model is exhausted on
+        # every key, the other still has its own full quota.
+        fallback_models=[settings.fast_model, settings.strong_model],
+    )
 
 
 @lru_cache(maxsize=1)

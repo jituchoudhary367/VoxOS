@@ -501,9 +501,13 @@ class ConversationService:
         return response.content
 
     @staticmethod
-    def _error_reply(_error: Exception) -> AssistantReply:
+    def _error_reply(error: Exception) -> AssistantReply:
+        from voxos.llm.errors import explain_llm_error, is_llm_error
+
+        if is_llm_error(error):
+            return AssistantReply(text=explain_llm_error(error), kind="error")
         return AssistantReply(
-            text="I’m having trouble reaching the language service. Please try again in a moment.",
+            text=f"Something went wrong on my side ({type(error).__name__}). Please try again.",
             kind="error",
         )
 

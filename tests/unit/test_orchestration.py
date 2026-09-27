@@ -626,3 +626,25 @@ def test_worker_prompt_stays_small_after_many_page_reads():
 
     # Two full reads (~4k each) plus four short previews, not 6 x 4k.
     assert len(rendered) < 2 * 4000 + 4 * 600 + 1000
+
+
+async def test_a_worker_that_hits_the_quota_says_so():
+    import httpx
+    from openai import RateLimitError
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    quota = RateLimitError(
+        "Rate limit reached on tokens per day (TPD): Limit 200000. Please try again in 16m5s.",
+        response=httpx.Response(429, request=request), body=None,
+    )
+    llm = ScriptedLLM(
+        coordinator=[{"goals": [{"id": "g1", "goal": "find laptops", "tools": ["web"], "depends_on": []}]}],
+        worker=[quota],
+        synthesizer=[ValueError("down too")],
+    )
+
+    outcome = await _orchestrator(llm).run("find laptops", session_id="s")
+
+    assert "daily limit" in outcome.results[0].error
+    assert "Internal error" not in outcome.reply
+    assert "16 minutes" in outcome.reply

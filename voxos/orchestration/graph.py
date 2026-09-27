@@ -251,8 +251,14 @@ class VoxOrchestrator:
                 language=payload["language"],
             )
         except Exception as e:  # noqa: BLE001 — one broken worker must not sink the others
-            log.error("worker_crashed", goal=goal.id, error=str(e), exc_info=True)
-            result = WorkerResult(goal_id=goal.id, goal=goal.goal, status="failed", error="Internal error")
+            from voxos.llm.errors import explain_llm_error, is_llm_error
+
+            log.error("worker_crashed", goal=goal.id, error=str(e)[:300], exc_info=not is_llm_error(e))
+            # The real reason, in words: "Internal error" hid an exhausted
+            # Groq quota, and chat then invented an explanation.
+            result = WorkerResult(
+                goal_id=goal.id, goal=goal.goal, status="failed", error=explain_llm_error(e),
+            )
         log.info(
             "worker_finished",
             goal=goal.id,

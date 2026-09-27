@@ -267,3 +267,95 @@ def test_settings_read_any_numbered_groq_key(monkeypatch, tmp_path):
     settings = LLMSettings(_env_file=str(env_file))
 
     assert settings.all_groq_keys(env_files=[str(env_file)]) == ["k1", "k2", "k3", "k4", "k10"]
+
+
+# ─── Limits are per model: live, a daily limit on gpt-oss-20b parked whole keys ──
+
+def _tpd_error(retry: str = "900") -> RateLimitError:
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(429, headers={"retry-after": retry}, request=request)
+    return RateLimitError("Rate limit reached ... tokens per day (TPD)", response=response, body=None)
+
+
+class ModelAwareProvider(FakeProvider):
+    """Rate limits one model, answers for others."""
+
+    def __init__(self, name, exhausted: set[str]):
+        super().__init__(name)
+        self.exhausted = exhausted
+        self.models: list[str] = []
+
+    async def complete(self, messages, config):
+        self.models.append(config.model)
+        if config.model in self.exhausted:
+            raise _tpd_error()
+        return LLMResponse(content=f"{self._name}:{config.model}", model=config.model, usage={"total_tokens": 1})
+
+
+async def test_a_daily_limit_on_one_model_leaves_the_key_usable_for_another():
+    clock = FakeClock()
+    a = ModelAwareProvider("a", exhausted={"small"})
+    pool = KeyPoolProvider([a], clock=clock, sleep=clock.sleep)
+
+    with pytest.raises(RateLimitError):
+        await pool.complete(MESSAGES, LLMConfig(model="small"))
+    response = await pool.complete(MESSAGES, LLMConfig(model="big"))
+
+    assert response.content == "a:big"
+
+
+async def test_exhausted_model_falls_back_to_the_other_model_on_the_same_keys():
+    clock = FakeClock()
+    a = ModelAwareProvider("a", exhausted={"small"})
+    b = ModelAwareProvider("b", exhausted={"small"})
+    pool = KeyPoolProvider([a, b], clock=clock, sleep=clock.sleep, fallback_models=["small", "big"])
+
+    response = await pool.complete(MESSAGES, LLMConfig(model="small"))
+
+    assert response.content.endswith(":big")
+    assert clock.slept == []  # no waiting out a 15-minute daily limit
+
+
+async def test_models_outside_the_fallback_family_never_switch():
+    """The vision model must not silently become a text-only model."""
+    clock = FakeClock()
+    a = ModelAwareProvider("a", exhausted={"vision"})
+    pool = KeyPoolProvider([a], clock=clock, sleep=clock.sleep, fallback_models=["small", "big"])
+
+    with pytest.raises(RateLimitError):
+        await pool.complete(MESSAGES, LLMConfig(model="vision"))
+    assert a.models == ["vision"]
+
+
+async def test_fallback_to_local_model_that_is_not_running_reports_the_quota_error():
+    """Ollama is not installed: the user must hear "quota", not "connection error"."""
+    from openai import APIConnectionError
+
+    from voxos.llm.router import FallbackProvider
+
+    class Down(FakeProvider):
+        async def complete(self, messages, config):
+            raise APIConnectionError(request=httpx.Request("POST", "http://localhost:11434"))
+
+    quota = FakeProvider("groq", errors=[_tpd_error()])
+    provider = FallbackProvider(quota, Down("ollama"))
+
+    with pytest.raises(RateLimitError):
+        await provider.complete(MESSAGES, CONFIG)
+
+
+@pytest.mark.parametrize(("error_text", "expected"), [
+    ("Rate limit reached for model `openai/gpt-oss-20b` on tokens per day (TPD): Limit 200000. Please try again in 16m5.2s.",
+     "daily"),
+    ("Rate limit reached on tokens per minute (TPM): Limit 8000. Please try again in 25.2s.", "minute"),
+])
+def test_quota_errors_are_explained_plainly(error_text, expected):
+    from voxos.llm.errors import explain_llm_error
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    error = RateLimitError(error_text, response=httpx.Response(429, request=request), body=None)
+
+    message = explain_llm_error(error)
+
+    assert expected in message
+    assert "Internal error" not in message
