@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
@@ -15,11 +16,36 @@ log = get_logger(__name__)
 
 ChatResponder = Callable[[str, list[dict[str, str]]], Awaitable[str]]
 
+# The history store is a remote Postgres: 2-13 s per message when awaited.
+# Recent turns are therefore kept in memory per session (shared across
+# service instances — the desktop UI builds one per message), loaded from the
+# store once per session, and written back in the background.
+HISTORY_READ_TIMEOUT_S = 1.5
+CONTEXT_TURNS = 12
+_SESSION_TURNS: dict[str, list[dict[str, str]]] = {}
+_WRITE_TAILS: dict[str, asyncio.Task] = {}
+
 
 class ConversationHistory(Protocol):
     async def append_turn(self, session_id: str, *, role: str, content: str) -> Any: ...
 
     async def list_recent(self, session_id: str, limit: int = 12) -> list[Any]: ...
+
+
+class _Understood:
+    """The Listener, answering the request it already understood from memory.
+
+    The pipeline runs the Listener on the same text again; that second LLM
+    call cost 0.5-0.8 s per command for the same answer.
+    """
+
+    def __init__(self, listener: Any, text: str, output: Any) -> None:
+        self._listener, self._text, self._output = listener, text, output
+
+    async def process(self, input: Any) -> Any:
+        if getattr(input, "text", None) == self._text:
+            return self._output
+        return await self._listener.process(input)
 
 
 class ConversationService:
@@ -72,7 +98,7 @@ class ConversationService:
                     )
                     completed_task = await self._task_manager.run_pipeline(
                         task=task,
-                        listener=self._listener,
+                        listener=_Understood(self._listener, clean_text, listener_output),
                         strategist=self._strategist,
                         executor=self._executor,
                         overseer=self._overseer,
@@ -346,16 +372,28 @@ class ConversationService:
     async def _recent_context(self, session_id: str) -> list[dict[str, str]]:
         if self._history is None:
             return []
+        turns = await self._session_turns(session_id)
+        return [dict(turn) for turn in turns[-CONTEXT_TURNS:]]
+
+    async def _session_turns(self, session_id: str) -> list[dict[str, str]]:
+        """This session's turns, read from the store only the first time."""
+        turns = _SESSION_TURNS.get(session_id)
+        if turns is not None:
+            return turns
+        stored: list[Any] = []
         try:
-            turns = await self._history.list_recent(session_id, limit=12)
-        except Exception as error:
-            log.warning("conversation_history_read_failed", error=str(error))
-            return []
-        return [
+            stored = await asyncio.wait_for(
+                self._history.list_recent(session_id, limit=CONTEXT_TURNS),
+                timeout=HISTORY_READ_TIMEOUT_S,
+            )
+        except Exception as error:  # includes the timeout
+            log.warning("conversation_history_read_failed", error=str(error) or type(error).__name__)
+        turns = _SESSION_TURNS.setdefault(session_id, [
             {"role": str(turn.role), "content": str(turn.content)}
-            for turn in turns
+            for turn in stored
             if getattr(turn, "role", None) and getattr(turn, "content", None)
-        ]
+        ])
+        return turns
 
     async def _llm_reply(self, text: str, context: list[dict[str, str]]) -> str:
         router = get_llm_router()
@@ -382,8 +420,32 @@ class ConversationService:
         )
 
     async def _append_turn(self, session_id: str, *, role: str, content: str) -> None:
-        if self._history is not None:
+        """Record a turn in memory now and in the store in the background."""
+        if self._history is None:
+            return
+        turns = await self._session_turns(session_id)
+        turns.append({"role": role, "content": content})
+        del turns[:-CONTEXT_TURNS * 4]
+
+        history = self._history
+        previous = _WRITE_TAILS.get(session_id)
+
+        async def write() -> None:
+            if previous is not None:  # keep this session's turns in order
+                await asyncio.gather(previous, return_exceptions=True)
             try:
-                await self._history.append_turn(session_id, role=role, content=content)
+                await history.append_turn(session_id, role=role, content=content)
             except Exception as error:
                 log.warning("conversation_history_write_failed", error=str(error))
+
+        tail = asyncio.create_task(write())
+        _WRITE_TAILS[session_id] = tail
+        tail.add_done_callback(
+            lambda done: _WRITE_TAILS.pop(session_id, None) if _WRITE_TAILS.get(session_id) is done else None
+        )
+
+    @staticmethod
+    async def flush() -> None:
+        """Wait until every pending history write has finished."""
+        while _WRITE_TAILS:
+            await asyncio.gather(*list(_WRITE_TAILS.values()), return_exceptions=True)

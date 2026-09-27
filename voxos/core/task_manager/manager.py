@@ -72,6 +72,9 @@ class TaskManager:
         # Builds the multi-agent orchestrator around this run's executor and
         # overseer; replaceable in tests.
         self.orchestrator_factory: Callable[[Any, Any], Any] = _default_orchestrator
+        # Background persistence: one writer per task, re-run while dirty.
+        self._sync_writers: dict[str, asyncio.Task] = {}
+        self._sync_dirty: set[str] = set()
 
     async def submit_task(self, user_request: str, session_id: str, db: Any = None) -> Task:
         """Compatibility wrapper for the original task-manager API."""
@@ -103,6 +106,35 @@ class TaskManager:
         self._tasks[task.id] = task
         return task
         
+    def _schedule_sync(self, task: Task) -> None:
+        """Persist the task's latest state without making the caller wait.
+
+        Writes to the remote database took 2-7 s each and a task changes
+        status several times, so awaiting them dominated reply latency. The
+        in-memory task is the source of truth while it runs; writes for one
+        task run one at a time, and changes made during a write are folded
+        into a single follow-up write of the latest state.
+        """
+        self._sync_dirty.add(task.id)
+        if task.id not in self._sync_writers:
+            self._sync_writers[task.id] = asyncio.create_task(self._sync_writer(task))
+
+    async def _sync_writer(self, task: Task) -> None:
+        try:
+            while task.id in self._sync_dirty:
+                self._sync_dirty.discard(task.id)
+                try:
+                    await self._sync_task_to_db(task)
+                except Exception as e:  # noqa: BLE001 — never take a task down
+                    log.error("task_db_sync_failed", task_id=task.id, error=str(e))
+        finally:
+            self._sync_writers.pop(task.id, None)
+
+    async def flush(self) -> None:
+        """Wait for every pending background write (shutdown, tests)."""
+        while self._sync_writers:
+            await asyncio.gather(*list(self._sync_writers.values()), return_exceptions=True)
+
     async def _sync_task_to_db(self, task: Task) -> None:
         """Sync in-memory task to database."""
         try:
@@ -166,7 +198,7 @@ class TaskManager:
             language=language,
         )
         self._tasks[task.id] = task
-        await self._sync_task_to_db(task)
+        self._schedule_sync(task)
         log.info("task_created", task_id=task.id, session_id=session_id)
         return task
 
@@ -192,7 +224,7 @@ class TaskManager:
         old_status = task.status
         task.set_status(new_status)
         
-        await self._sync_task_to_db(task)
+        self._schedule_sync(task)
 
         event_map: dict[TaskStatus, EventType] = {
             TaskStatus.UNDERSTANDING: EventType.TASK_STARTED,

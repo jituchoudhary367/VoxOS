@@ -63,6 +63,20 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     log.info("vox_shutting_down")
+    # Task and conversation history are written in the background; let the
+    # pending writes land (bounded, so a dead database cannot hang shutdown).
+    try:
+        import asyncio
+
+        from voxos.core.conversation.service import ConversationService
+        from voxos.core.task_manager.manager import get_task_manager
+
+        await asyncio.wait_for(
+            asyncio.gather(get_task_manager().flush(), ConversationService.flush()),
+            timeout=15,
+        )
+    except Exception as e:
+        log.warning("shutdown_flush_incomplete", error=str(e) or type(e).__name__)
     try:
         from voxos.core.events.bus import get_event_bus
         await get_event_bus().disconnect()

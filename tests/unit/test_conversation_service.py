@@ -65,6 +65,7 @@ async def test_greeting_returns_human_text_without_running_a_task() -> None:
     service = ConversationService(task_manager=task_manager, history=history)
 
     reply = await service.handle_text("hi", str(uuid.uuid4()))
+    await service.flush()
 
     assert reply.kind == "info"
     assert "how can" in reply.text.lower()
@@ -89,6 +90,7 @@ async def test_successful_tool_result_is_never_rendered_as_a_dict() -> None:
     )
 
     reply = await service.handle_text("open notepad", str(uuid.uuid4()))
+    await service.flush()
 
     assert reply.kind == "success"
     assert reply.text == "Opened Notepad."
@@ -123,6 +125,7 @@ async def test_chat_reply_receives_recent_session_context() -> None:
     )
 
     reply = await service.handle_text("What is my name?", str(uuid.uuid4()))
+    await service.flush()
 
     assert reply.text == "Your name is Abhijeet."
     assert reply.kind == "info"
@@ -561,3 +564,122 @@ def test_google_captcha_failure_has_a_safe_actionable_reply() -> None:
     assert reply.text == "Google blocked that automated search. Try searching with Bing instead."
     assert reply.kind == "error"
     assert "{" not in reply.text
+
+
+# ─── History must not sit on the reply path ─────────────────────────────────
+# Reads and writes to the remote Postgres took 2-13 s per message.
+
+
+class _SlowHistory(_History):
+    def __init__(self, seed=None) -> None:
+        super().__init__()
+        self.release = __import__("asyncio").Event()
+        self.seed = seed or []
+        self.reads = 0
+
+    async def append_turn(self, _session_id: str, *, role: str, content: str) -> None:
+        await self.release.wait()
+        self.turns.append((role, content))
+
+    async def list_recent(self, _session_id: str, limit: int = 12):
+        self.reads += 1
+        return self.seed
+
+
+@pytest.mark.asyncio
+async def test_reply_does_not_wait_for_history_writes() -> None:
+    import asyncio
+
+    from voxos.core.conversation.service import ConversationService
+
+    history = _SlowHistory()
+    service = ConversationService(
+        task_manager=_TaskManager(), history=history, listener=_ChatListener(),
+        chat_responder=lambda _t, _c: asyncio.sleep(0, result="Sure."),
+    )
+
+    reply = await asyncio.wait_for(service.handle_text("tell me a joke", str(uuid.uuid4())), timeout=1)
+
+    assert reply.text == "Sure."
+    assert history.turns == []
+    history.release.set()
+    await service.flush()
+    assert history.turns == [("user", "tell me a joke"), ("assistant", "Sure.")]
+
+
+@pytest.mark.asyncio
+async def test_context_comes_from_memory_after_the_first_read() -> None:
+    import asyncio
+
+    from voxos.core.conversation.service import ConversationService
+
+    seed = [type("Turn", (), {"role": "user", "content": "My name is Abhijeet"})()]
+    history = _SlowHistory(seed=seed)
+    history.release.set()
+    seen: list[list[str]] = []
+
+    async def responder(_text, context):
+        seen.append([c["content"] for c in context])
+        return "ok"
+
+    session = str(uuid.uuid4())
+    for text in ("first", "second"):
+        # A fresh service per message, the way the desktop UI calls it.
+        service = ConversationService(
+            task_manager=_TaskManager(), history=history, listener=_ChatListener(), chat_responder=responder,
+        )
+        await service.handle_text(text, session)
+
+    assert history.reads == 1
+    assert seen[1] == ["My name is Abhijeet", "first", "ok", "second"]
+
+
+@pytest.mark.asyncio
+async def test_slow_first_history_read_is_capped() -> None:
+    import asyncio
+
+    from voxos.core.conversation import service as service_module
+    from voxos.core.conversation.service import ConversationService
+
+    class HangingHistory(_History):
+        async def list_recent(self, _session_id: str, limit: int = 12):
+            await asyncio.sleep(30)
+            return []
+
+    service = ConversationService(
+        task_manager=_TaskManager(), history=HangingHistory(), listener=_ChatListener(),
+        chat_responder=lambda _t, _c: asyncio.sleep(0, result="ok"),
+    )
+
+    reply = await asyncio.wait_for(
+        service.handle_text("hello there", str(uuid.uuid4())),
+        timeout=service_module.HISTORY_READ_TIMEOUT_S + 1,
+    )
+    assert reply.text == "ok"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_reuses_the_listener_result_instead_of_a_second_llm_call() -> None:
+    from voxos.agents.listener.agent import ListenerInput, ListenerOutput
+    from voxos.core.conversation.service import ConversationService
+
+    class CountingListener:
+        calls = 0
+
+        async def process(self, _input):
+            CountingListener.calls += 1
+            return ListenerOutput(intent="open_application", requires_execution=True)
+
+    class PipelineCallsListener(_TaskManager):
+        async def run_pipeline(self, **kwargs):
+            await kwargs["listener"].process(ListenerInput(text="open notepad", session_id="s"))
+            return await super().run_pipeline(**kwargs)
+
+    service = ConversationService(
+        task_manager=PipelineCallsListener(), history=_History(), listener=CountingListener(),
+        strategist=object(), executor=object(), overseer=object(), permissions=object(),
+    )
+
+    await service.handle_text("open notepad", str(uuid.uuid4()))
+
+    assert CountingListener.calls == 1

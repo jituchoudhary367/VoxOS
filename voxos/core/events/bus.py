@@ -81,6 +81,10 @@ class EventBus:
         self._handlers: dict[EventType, list[EventHandler]] = {}
         self._global_handlers: list[EventHandler] = []
         self._connected = False
+        # Redis copies of events, sent in order by one background sender so
+        # a remote Redis round trip never delays the publisher.
+        self._outbox: list[tuple[str, str]] = []
+        self._sender: asyncio.Task | None = None
 
     async def connect(self) -> None:
         """Connect to Redis."""
@@ -116,10 +120,33 @@ class EventBus:
 
     async def disconnect(self) -> None:
         """Close Redis connection."""
+        try:
+            await asyncio.wait_for(self.flush(), timeout=5)
+        except Exception:
+            log.warning("event_outbox_not_flushed", pending=len(self._outbox) // 2)
         if self._redis:
             await self._redis.close()
             self._connected = False
             log.info("event_bus_disconnected")
+
+    OUTBOX_LIMIT = 2000
+
+    async def _send_outbox(self) -> None:
+        """Send queued events in order, batching everything waiting into one round trip."""
+        while self._outbox and self._redis is not None:
+            batch, self._outbox = self._outbox, []
+            try:
+                async with self._redis.pipeline(transaction=False) as pipe:
+                    for channel, message in batch:
+                        pipe.publish(channel, message)
+                    await pipe.execute()
+            except Exception as e:
+                log.warning("event_redis_publish_failed", events=len(batch) // 2, error=str(e))
+
+    async def flush(self) -> None:
+        """Wait until every queued event has been sent to Redis."""
+        while self._sender is not None and not self._sender.done():
+            await asyncio.gather(self._sender, return_exceptions=True)
 
     async def publish(self, event: VoxEvent) -> None:
         """
@@ -151,15 +178,17 @@ class EventBus:
                     error=str(e),
                 )
 
-        # Redis pub/sub for cross-process consumers
+        # Redis pub/sub for cross-process consumers, off the request path:
+        # each remote round trip took 0.3-1 s and a task publishes ~11 events.
         if self._connected and self._redis:
-            try:
-                event_json = event.to_json()
-                channel = f"{self.CHANNEL_PREFIX}{event.event_type}"
-                await self._redis.publish(channel, event_json)
-                await self._redis.publish(self.GLOBAL_CHANNEL, event_json)
-            except Exception as e:
-                log.warning("event_redis_publish_failed", event_type=event.event_type, error=str(e))
+            event_json = event.to_json()
+            if len(self._outbox) >= self.OUTBOX_LIMIT:
+                log.warning("event_outbox_full_dropping", event_type=event.event_type)
+            else:
+                self._outbox.append((f"{self.CHANNEL_PREFIX}{event.event_type}", event_json))
+                self._outbox.append((self.GLOBAL_CHANNEL, event_json))
+                if self._sender is None or self._sender.done():
+                    self._sender = asyncio.create_task(self._send_outbox())
 
         log.debug(
             "event_published",
