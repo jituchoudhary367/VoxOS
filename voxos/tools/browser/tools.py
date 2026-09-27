@@ -24,6 +24,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from voxos.observability.logger import get_logger
+from voxos.tools.browser.tabs import current_tab
 from voxos.tools.base import BaseTool, RiskLevel, ToolResult, ToolMetadata, VerificationResult, VerificationType
 
 log = get_logger(__name__)
@@ -44,10 +45,50 @@ _browser_instance = None
 _context_instance = None
 _page_instance = None
 _init_lock = asyncio.Lock()
+# One tab per worker / command (see voxos.tools.browser.tabs).
+_tabs: dict[str, Any] = {}
+_last_page = None
 
 
-async def _get_browser_session() -> "Page":
-    """Get or create a persistent visible Playwright session."""
+async def _get_browser_session(navigate: bool = False) -> "Page":
+    """The page the current worker or command should use.
+
+    A tool that navigates (open, search) gets its own tab the first time it
+    runs under a tab key, so parallel workers and consecutive commands no
+    longer overwrite each other's pages; the untouched start page is used
+    for the first one. A tool that only acts on a page (click, scroll,
+    extract) uses its key's tab, or else the most recently used tab, so
+    "now scroll down" follows the last search.
+    """
+    global _last_page
+    main = await _ensure_browser()
+    key = current_tab()
+    page = _tabs.get(key) if key is not None else None
+    if page is not None and page.is_closed():
+        page = None
+    if page is None:
+        if key is not None and navigate:
+            claimed = any(p is main for p in _tabs.values())
+            if not claimed and not main.is_closed() and main.url == "about:blank":
+                page = main
+            else:
+                page = await _context_instance.new_page()
+            _tabs[key] = page
+            log.info("browser_tab_assigned", key=key, tabs=len(_tabs), reused_start_page=page is main)
+            try:
+                await page.bring_to_front()
+            except Exception:
+                pass
+        elif _last_page is not None and not _last_page.is_closed():
+            page = _last_page
+        else:
+            page = main
+    _last_page = page
+    return page
+
+
+async def _ensure_browser() -> "Page":
+    """Get or create a persistent visible Playwright session; returns its start page."""
     global _playwright_context_manager, _playwright_instance, _browser_instance, _context_instance, _page_instance
 
     if not _PLAYWRIGHT_AVAILABLE:
@@ -94,6 +135,7 @@ async def _get_browser_session() -> "Page":
             ),
         )
         _page_instance = await _context_instance.new_page()
+        _tabs.clear()  # pages of a previous browser are gone
 
     return _page_instance
 
@@ -106,6 +148,9 @@ async def _close_browser_session() -> None:
     if _playwright_context_manager:
         await _playwright_context_manager.stop()
     _playwright_context_manager = _playwright_instance = _browser_instance = _context_instance = _page_instance = None
+    _tabs.clear()
+    global _last_page
+    _last_page = None
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +184,7 @@ class BrowserOpenTool(BaseTool):
             if url != "about:blank" and not url.startswith("http"):
                 url = "https://" + url
 
-            page = await _get_browser_session()
+            page = await _get_browser_session(navigate=True)
             log.info("browser_navigate", url=url)
             await page.goto(url, wait_until="domcontentloaded", timeout=25000)
             title = await page.title()
@@ -205,7 +250,7 @@ class BrowserSearchTool(BaseTool):
         url = search_urls.get(engine, search_urls["bing"])
 
         try:
-            page = await _get_browser_session()
+            page = await _get_browser_session(navigate=True)
             log.info("browser_search", engine=engine, query=args.query)
             await page.goto(url, wait_until="domcontentloaded", timeout=25000)
             title = await page.title()

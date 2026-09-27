@@ -4,6 +4,8 @@ Synthesizer — merges Worker results into one reply Vox can speak.
 
 from __future__ import annotations
 
+import re
+
 from voxos.llm.router import TaskComplexity
 from voxos.observability.logger import get_logger
 from voxos.orchestration.llm import JsonAsker
@@ -12,11 +14,28 @@ from voxos.orchestration.worker import WorkerResult
 log = get_logger(__name__)
 
 SYNTH_PROMPT = """You are Vox, a voice assistant. Several agents worked on parts of the user's
-request. Write ONE short spoken reply (at most 4 sentences, no markdown, no lists) that gives the
-user the actual findings — the real numbers, names and headlines, not "I found it" — and plainly
-says what failed and why. Never claim a failed part succeeded.
+request. Write ONE short spoken reply (at most 4 sentences, no markdown, no lists, no URLs) that
+gives the user the actual findings — the real numbers, names and headlines, not "I found it" — and
+plainly says what failed and why. Never claim a failed part succeeded.
+Use ONLY facts written in the results below. Never add names, prices, numbers or details that are
+not there; if a result only says a page was opened, say that and nothing more.
 Reply in the user's language ({language}).
 Respond with JSON: {{"reply": "..."}}"""
+
+
+_URL = re.compile(r"\(?\bhttps?://[^\s)]+\)?")
+_MARKDOWN = re.compile(r"\*\*|__|`|^#+\s*", re.MULTILINE)
+_DANGLING_DASH = re.compile(r"\s+[–—-]\s+(?=[–—-]|\.|,|$)")
+_SPACE_BEFORE_PUNCT = re.compile(r"\s+([.,;:])")
+
+
+def speakable(text: str) -> str:
+    """Text Vox can say aloud: no URLs or markdown, whatever the model wrote."""
+    text = _URL.sub("", text)
+    text = _MARKDOWN.sub("", text)
+    text = _DANGLING_DASH.sub(" ", text)  # the "– " a removed URL leaves behind
+    text = _SPACE_BEFORE_PUNCT.sub(r"\1", text)
+    return re.sub(r"\s{2,}", " ", text).strip()
 
 
 def _line(result: WorkerResult) -> str:
@@ -43,7 +62,7 @@ async def synthesize(
     request: str, results: list[WorkerResult], llm: JsonAsker, language: str = "en"
 ) -> str:
     if len(results) == 1 and results[0].status == "done" and results[0].answer:
-        return results[0].answer
+        return speakable(results[0].answer)
     try:
         data = await llm.ask(
             "synthesizer",
@@ -52,9 +71,9 @@ async def synthesize(
             complexity=TaskComplexity.SIMPLE,
             max_tokens=400,
         )
-        reply = str(data.get("reply") or "").strip()
+        reply = speakable(str(data.get("reply") or ""))
         if reply:
             return reply
     except Exception as e:  # noqa: BLE001
         log.warning("synthesizer_failed_using_fallback", error=str(e))
-    return _fallback(results)
+    return speakable(_fallback(results))

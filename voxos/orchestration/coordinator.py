@@ -49,6 +49,8 @@ Rules:
 - Split only into parts that can run AT THE SAME TIME. Each agent can already do several steps in
   order and use its own results, so "find X, then do something with X" is ONE goal, not two.
 - One sub-goal when the request is a single job or a single chain of steps. At most {max_goals} sub-goals.
+- Keep each goal to what the user asked; do not add extra requirements ("top 3", "summarize each article").
+- Say WHAT each goal must achieve, not how: no clicking, typing or search-bar steps (agents choose tools).
 - Each goal is a complete, self-contained instruction (agents do not see the original request),
   with the concrete names, paths and language details from the request.
 - depends_on: only when a goal truly needs another goal's result and they use unrelated tools; otherwise empty.
@@ -77,7 +79,9 @@ async def decompose(
             "coordinator",
             COORDINATOR_PROMPT.format(families=_families_text(), max_goals=max_goals),
             user,
-            complexity=TaskComplexity.COMPLEX,
+            # Splitting a sentence is easy; the fast model does it in ~1 s
+            # where the strong one took ~4 s before any worker could start.
+            complexity=TaskComplexity.STANDARD,
         )
         goals = _clean(data.get("goals"), max_goals)
     except Exception as e:  # noqa: BLE001 — a failed split must not fail the request

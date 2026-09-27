@@ -66,3 +66,58 @@ async def test_a_failing_write_is_logged_not_raised():
     await manager.flush()
 
     assert task.status == TaskStatus.COMPLETED
+
+
+async def test_session_created_concurrently_by_another_task_is_not_an_error(monkeypatch):
+    """Parallel tasks of one session raced to insert the session row."""
+    import uuid
+
+    from sqlalchemy.exc import IntegrityError
+
+    from voxos.core.task_manager import manager as manager_module
+    from voxos.core.task_manager.models import Task
+
+    calls: list[str] = []
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return False
+
+        async def commit(self):
+            calls.append("commit")
+
+        async def rollback(self):
+            calls.append("rollback")
+
+    class SessionRepo:
+        def __init__(self, _s):
+            pass
+
+        async def get(self, _v):
+            return None
+
+        async def create(self, _p):
+            raise IntegrityError("insert", {}, Exception("duplicate key sessions_pkey"))
+
+    class TaskRepo:
+        def __init__(self, _s):
+            pass
+
+        async def get(self, _v):
+            return None
+
+        async def create(self, _p):
+            calls.append("task_create")
+
+    monkeypatch.setattr(manager_module, "get_session_factory", lambda: (lambda: FakeSession()))
+    monkeypatch.setattr(manager_module, "SessionRepository", SessionRepo)
+    monkeypatch.setattr(manager_module, "TaskRepository", TaskRepo)
+    monkeypatch.setattr(manager_module.get_settings(), "env", "production", raising=False)
+
+    task = Task(session_id=str(uuid.uuid4()), user_request="x")
+    await manager_module.TaskManager()._sync_task_to_db(task)
+
+    assert calls == ["rollback", "task_create", "commit"]

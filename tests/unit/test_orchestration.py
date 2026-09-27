@@ -176,7 +176,9 @@ async def test_worker_reflection_can_send_it_back_for_one_more_round():
     result = await Worker(llm, executor, FakeOverseer()).run(GOAL, request="time?", session_id="s")
 
     assert result.answer == "It is 13:00."
-    assert result.reflections == 2
+    # One review of the unsupported answer; the retry's answer is backed by a
+    # verified tool result, so it skips the second review.
+    assert result.reflections == 1
     assert "never checked the clock" in llm.prompts["worker"][1]
 
 
@@ -456,9 +458,9 @@ async def test_counting_files_worker_never_sees_the_shell():
     worker = Worker(llm, FakeExecutor(), FakeOverseer())
     original = worker.tools_prompt
 
-    def spy(families, allow_shell=True):
+    def spy(families, allow_shell=True, **kwargs):
         seen["allow_shell"] = allow_shell
-        return original(families, allow_shell)
+        return original(families, allow_shell, **kwargs)
 
     worker.tools_prompt = spy
     await worker.run(SubGoal(id="g1", goal="Count the files in the workspace", tools=["os"]), request="", session_id="s")
@@ -515,3 +517,88 @@ def test_native_tool_call_is_recovered_as_a_worker_action():
     assert recover_failed_generation(error) == {
         "action": "tool", "tool": "web.extract", "arguments": {"url": "https://groq.com/news"},
     }
+
+
+# ─── Smarter, faster workers (screenshot: Amazon search denied) ─────────────
+
+def test_worker_only_sees_tools_the_user_may_use():
+    from voxos.core.permissions.manager import PermissionManager
+
+    worker = Worker(ScriptedLLM(), FakeExecutor(), FakeOverseer())
+    denied_type = PermissionManager()  # default profile: no browser.form
+    text = worker.tools_prompt(["browser"], permissions=denied_type)
+
+    assert "browser.open" in text
+    assert ("browser.type" in text) == denied_type.can_use_tool("browser.type")
+
+
+async def test_grounded_verified_answer_skips_the_critic():
+    llm = ScriptedLLM(worker=[_call("system.get_time"), _finish("It is 13:00.")])  # no reflect queued
+
+    result = await Worker(llm, FakeExecutor(), FakeOverseer()).run(GOAL, request="x", session_id="s")
+
+    assert result.status == "done"
+    assert result.reflections == 0
+    assert "reflect" not in llm.prompts
+
+
+async def test_answer_without_tool_evidence_is_still_reviewed():
+    llm = ScriptedLLM(worker=[_finish("Probably afternoon.")], reflect=[SATISFIED])
+
+    result = await Worker(llm, FakeExecutor(), FakeOverseer()).run(GOAL, request="x", session_id="s")
+
+    assert result.reflections == 1
+
+
+async def test_tool_name_given_as_the_action_is_still_a_tool_call():
+    # gpt-oss sometimes writes {"action": "browser.open", "arguments": {...}}.
+    llm = ScriptedLLM(
+        worker=[{"thought": "open it", "action": "system.get_time", "arguments": {}}, _finish("It is 1 PM.")],
+    )
+    executor = FakeExecutor()
+
+    result = await Worker(llm, executor, FakeOverseer()).run(GOAL, request="x", session_id="s")
+
+    assert executor.calls == [("system.get_time", {})]
+    assert result.status == "done"
+
+
+async def test_worker_reads_at_most_one_page_then_must_answer():
+    llm = ScriptedLLM(worker=[
+        _call("web.search", query="ai news"),
+        _call("web.extract", url="https://a.example"),
+        _call("web.extract", url="https://b.example"),
+        _finish("Headline A."),
+    ])
+    executor = FakeExecutor({"web.search": {"status": "SUCCESS", "data": {"results": [{"title": "A"}]}}})
+
+    result = await Worker(llm, executor, FakeOverseer()).run(GOAL, request="x", session_id="s")
+
+    assert [tool for tool, _ in executor.calls] == ["web.search", "web.extract"]
+    assert "answer now" in llm.prompts["worker"][3].lower()
+    assert result.answer == "Headline A."
+
+
+def test_spoken_reply_has_no_urls_or_markdown():
+    from voxos.orchestration.synthesizer import speakable
+
+    text = ('1. Digit – "Best Laptops" – https://www.digit.in/laptops/best.html – highlights **Asus Vivobook**. '
+            "See (https://flipkart.com/x?y=1) too.")
+
+    cleaned = speakable(text)
+
+    assert "http" not in cleaned
+    assert "**" not in cleaned
+    assert "Asus Vivobook" in cleaned
+    assert "( )" not in cleaned and "()" not in cleaned
+
+
+async def test_single_worker_answer_is_also_cleaned():
+    from voxos.orchestration.worker import WorkerResult
+
+    reply = await synthesize(
+        "x", [WorkerResult(goal_id="g1", goal="x", status="done", answer="See https://a.example/page for **details**.")],
+        ScriptedLLM(),
+    )
+
+    assert reply == "See for details."

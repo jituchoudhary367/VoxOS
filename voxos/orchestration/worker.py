@@ -25,6 +25,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from voxos.config import get_settings
+from voxos.core.permissions.manager import get_permission_manager
 from voxos.core.task_manager.models import Task, TaskPlan, TaskStep
 from voxos.llm.router import TaskComplexity
 from voxos.observability.logger import get_logger
@@ -39,6 +40,8 @@ metrics = get_metrics()
 # The world said no. Retrying with other tools would be routing around it.
 STOP_ERRORS = frozenset({"BLOCKED", "SECURITY_BLOCKED", "PERMISSION_DENIED", "APPROVAL_REJECTED"})
 OBSERVATION_CHARS = 1500
+# Tools that fetch a whole page; one successful read per worker is enough.
+PAGE_READERS = frozenset({"web.extract", "browser.extract"})
 
 SHELL_TOOL = "os.shell_command"
 # Shell commands wait for the user's approval, so a worker only gets the
@@ -88,6 +91,12 @@ The user's home folder is {home}.
 
 Rules:
 - Never use os.shell_command when another tool can do the job: shell commands wait for the user's approval.
+- To search inside a website, open its search results URL directly instead of typing into the page,
+  e.g. https://www.amazon.in/s?k=asus+laptop, https://www.flipkart.com/search?q=asus+laptop,
+  https://www.youtube.com/results?search_query=lofi+music. For a general web search use browser.search.
+- A browser action is done once the page is open: finish then, saying what is on screen.
+- For news and facts, answer from the search result snippets. Open at most ONE page, and only when
+  the snippets do not contain the answer. Speed matters: the user is waiting.
 - Do ONLY your goal. Other agents are handling the rest of the user's request at the same time; the full request is shown only for context.
 - Use only the tools above, with exactly the argument names shown.
 - Base facts on tool results, never guess (times, file names, sizes, contents).
@@ -120,12 +129,18 @@ class Worker:
         self._max_steps = max_steps
         self._extra_steps = extra_steps
 
-    def tools_prompt(self, families: list[str], allow_shell: bool = True) -> str:
+    def tools_prompt(
+        self, families: list[str], allow_shell: bool = True, permissions: Any = None
+    ) -> str:
         from voxos.agents.strategist.agent import describe_tools
 
         lines = describe_tools(self._registry).splitlines()
         if not allow_shell:
             lines = [line for line in lines if not line.startswith(f"- {SHELL_TOOL}(")]
+        # A tool the user may not use would only end the worker with
+        # PERMISSION_DENIED; never offer it.
+        manager = permissions or get_permission_manager()
+        lines = [line for line in lines if manager.allows_tool(line[2:].split("(", 1)[0])]
         if not families:
             return "\n".join(lines)
         prefixes = tuple(f"- {family}." for family in families)
@@ -142,7 +157,11 @@ class Worker:
         language: str = "en",
     ) -> WorkerResult:
         system = WORKER_PROMPT.format(
-            tools=self.tools_prompt(goal.tools, allow_shell=bool(_ASKS_FOR_SHELL.search(goal.goal))),
+            tools=self.tools_prompt(
+                goal.tools,
+                allow_shell=bool(_ASKS_FOR_SHELL.search(goal.goal)),
+                permissions=permissions,
+            ),
             workspace=get_settings().workspace.workspace_path,
             home=Path.home(),
         )
@@ -162,13 +181,28 @@ class Worker:
                     self._turn_prompt(goal, request, context or [], observations, critique, language, session_id),
                     complexity=TaskComplexity.STANDARD,
                 )
+                decision = self._normalize(decision)
                 if decision.get("action") == "finish" or not decision.get("tool"):
                     answer = answer_of(decision)
                     if not answer:
                         log.warning("worker_empty_finish", goal=goal.id, keys=sorted(decision))
                     break
 
-                observation = await self._act(task, goal, len(observations) + 1, decision, session_id, permissions)
+                if decision["tool"] in PAGE_READERS and any(
+                    o["tool"] in PAGE_READERS and o.get("status") == "SUCCESS" for o in observations
+                ):
+                    # Reading page after page made a news question take 25 s.
+                    observation = {
+                        "tool": decision["tool"],
+                        "arguments": decision.get("arguments") or {},
+                        "status": "SKIPPED",
+                        "error": "Not run: you already read a page. Answer now from what you have.",
+                        "error_code": "LIMIT",
+                    }
+                else:
+                    observation = await self._act(
+                        task, goal, len(observations) + 1, decision, session_id, permissions
+                    )
                 observations.append(observation)
                 if observation.get("error_code") in STOP_ERRORS:
                     metrics.increment("orchestration.worker.stopped", reason=observation["error_code"])
@@ -177,6 +211,18 @@ class Worker:
                         error=observation.get("error") or observation["error_code"],
                         blocked=True, steps=observations, reflections=reflections,
                     )
+
+            # An answer drawn from a tool result that succeeded and passed the
+            # Overseer's check needs no critic; skipping it saves an LLM round
+            # trip per worker. Answers with no evidence, or after a failed
+            # last step, are still reviewed.
+            last = observations[-1] if observations else None
+            if answer and last and last.get("status") == "SUCCESS" and last.get("verified") is not False:
+                metrics.increment("orchestration.worker.done")
+                return WorkerResult(
+                    goal_id=goal.id, goal=goal.goal, status="done", answer=answer,
+                    steps=observations, reflections=reflections,
+                )
 
             reflections += 1
             verdict = await self._reflect(goal, observations, answer)
@@ -210,6 +256,20 @@ class Worker:
             error=failures[-1] if failures else (critique or "Ran out of steps"),
             steps=observations, reflections=reflections,
         )
+
+    def _normalize(self, decision: dict[str, Any]) -> dict[str, Any]:
+        """Accept the shapes gpt-oss uses besides the one asked for.
+
+        {"action": "browser.open", "arguments": {...}} and {"name": ...} both
+        mean a tool call; without this they read as "finished, no answer".
+        """
+        if decision.get("tool") or decision.get("action") == "finish":
+            return decision
+        for key in ("action", "name", "tool_name"):
+            name = decision.get(key)
+            if isinstance(name, str) and self._registry.get(name) is not None:
+                return {**decision, "action": "tool", "tool": name}
+        return decision
 
     async def _act(
         self,
@@ -277,8 +337,11 @@ class Worker:
         parts.append(f"Your goal: {goal.goal}")
         if session_id and (not goal.tools or "memory" in goal.tools):
             parts.append(f"For memory tools use user_id: {session_id}")
-        if language != "en":
-            parts.append(f"Write the answer in the user's language ({language}).")
+        parts.append(
+            "Write the answer in English."
+            if language in ("en", "auto", "")
+            else f"Write the answer in the user's language ({language})."
+        )
         if context:
             parts.append("Known context:\n" + "\n".join(f"- {c}" for c in context))
         parts.append("Actions so far:\n" + (self._render(observations) or "(none yet)"))

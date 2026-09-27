@@ -28,6 +28,7 @@ from voxos.core.permissions.manager import PermissionManager, get_permission_man
 from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
 from voxos.tools.base import ToolResult
+from voxos.tools.browser.tabs import browser_tab_default
 from voxos.tools.registry import get_tool_registry
 
 log = get_logger(__name__)
@@ -216,6 +217,19 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
         prior_results: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute a single plan step with full security checks."""
+        # Browser steps of this task share one tab; other tasks (and each
+        # orchestration worker, which has its own task) get their own.
+        with browser_tab_default(task.id):
+            return await self._execute_step_checked(step, task, session_id, permissions, prior_results)
+
+    async def _execute_step_checked(
+        self,
+        step: TaskStep,
+        task: Task,
+        session_id: str | None,
+        permissions: PermissionManager | None,
+        prior_results: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         step.status = StepStatus.IN_PROGRESS
         step.started_at = datetime.now(timezone.utc)
 

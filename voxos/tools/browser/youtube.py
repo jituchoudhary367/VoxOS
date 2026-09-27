@@ -47,7 +47,7 @@ class YouTubeSearchTool(BaseTool):
             q = urllib.parse.quote_plus(args.query)
             url = f"https://www.youtube.com/results?search_query={q}"
 
-            page = await _get_browser_session()
+            page = await _get_browser_session(navigate=True)
             log.info("youtube_search_started", query=args.query)
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             await asyncio.sleep(1.5)
@@ -127,7 +127,7 @@ class YouTubePlayTool(BaseTool):
         from voxos.tools.browser.tools import _get_browser_session
 
         try:
-            page = await _get_browser_session()
+            page = await _get_browser_session(navigate=True)
 
             if args.video_url:
                 url = args.video_url

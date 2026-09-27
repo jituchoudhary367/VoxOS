@@ -18,6 +18,8 @@ import asyncio
 import uuid
 from typing import Any, Callable
 
+from sqlalchemy.exc import IntegrityError
+
 from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.task_manager.models import Task, TaskStatus
@@ -143,11 +145,17 @@ class TaskManager:
                 session_id = uuid.UUID(task.session_id)
                 session_repo = SessionRepository(session)
                 if await session_repo.get(session_id) is None:
-                    await session_repo.create({
-                        "id": session_id,
-                        "status": "active",
-                        "session_metadata": {},
-                    })
+                    # Parallel tasks of one session race to insert this row;
+                    # losing the race is fine, the row exists either way.
+                    try:
+                        await session_repo.create({
+                            "id": session_id,
+                            "status": "active",
+                            "session_metadata": {},
+                        })
+                        await session.commit()
+                    except IntegrityError:
+                        await session.rollback()
 
                 import json
                 from datetime import datetime

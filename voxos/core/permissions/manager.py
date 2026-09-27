@@ -123,6 +123,13 @@ class PermissionManager:
     def __init__(self, user_permissions: set[Permission] | None = None) -> None:
         self._permissions = set(DEFAULT_PERMISSIONS if user_permissions is None else user_permissions)
 
+    def allows_tool(self, tool_name: str) -> bool:
+        """can_use_tool without logging: for listing tools, not enforcing."""
+        required = TOOL_PERMISSION_MAP.get(tool_name)
+        if required is None:
+            return False
+        return Permission.ADMIN in self._permissions or required in self._permissions
+
     def can_use_tool(self, tool_name: str) -> bool:
         """Return True if the user's permissions allow this tool."""
         required = TOOL_PERMISSION_MAP.get(tool_name)

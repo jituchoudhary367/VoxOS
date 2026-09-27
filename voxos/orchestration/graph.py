@@ -204,7 +204,14 @@ class VoxOrchestrator:
         except Exception as e:  # noqa: BLE001 — one broken worker must not sink the others
             log.error("worker_crashed", goal=goal.id, error=str(e), exc_info=True)
             result = WorkerResult(goal_id=goal.id, goal=goal.goal, status="failed", error="Internal error")
-        log.info("worker_finished", goal=goal.id, status=result.status, steps=len(result.steps))
+        log.info(
+            "worker_finished",
+            goal=goal.id,
+            status=result.status,
+            steps=[f"{o.get('tool')}:{o.get('status')}" for o in result.steps],
+            answer=result.answer[:300],
+            error=result.error[:200],
+        )
         return {"results": [result.model_dump()]}
 
     async def _synthesize_node(self, state: _State) -> dict[str, Any]:
