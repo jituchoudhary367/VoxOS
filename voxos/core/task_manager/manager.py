@@ -20,6 +20,8 @@ from typing import Any, Callable
 
 from sqlalchemy.exc import IntegrityError
 
+from voxos.core.request_context import user_request
+
 from voxos.core.events.bus import VoxEvent, get_event_bus
 from voxos.core.events.types import EventType
 from voxos.core.task_manager.models import Task, TaskStatus
@@ -296,10 +298,13 @@ class TaskManager:
         metrics.increment("tasks.started")
 
         try:
-            async with metrics.async_timer("task.duration", status="unknown"):
-                task = await self._execute_pipeline(
-                    task, listener, strategist, executor, overseer, permissions
-                )
+            # Tools that must check what the USER asked (saved logins) read
+            # it from here; agents cannot change it.
+            with user_request(task.user_request):
+                async with metrics.async_timer("task.duration", status="unknown"):
+                    task = await self._execute_pipeline(
+                        task, listener, strategist, executor, overseer, permissions
+                    )
 
         except asyncio.CancelledError:
             await self.transition(task, TaskStatus.CANCELLED)
@@ -569,9 +574,10 @@ class TaskManager:
         task.result = {
             "reply": outcome.reply,
             "workers": [r.model_dump() for r in outcome.results],
+            "questions": outcome.questions,
         }
         task.total_ms = (time.monotonic() - t0) * 1000
-        if outcome.succeeded:
+        if outcome.succeeded or outcome.questions:  # asking is not failing
             await self.transition(task, TaskStatus.COMPLETED)
         else:
             task.error_info = {
@@ -597,15 +603,18 @@ class TaskManager:
 
 
 def _default_orchestrator(executor: Any, overseer: Any) -> Any:
-    from voxos.core.memory.manager import get_memory_manager
     from voxos.orchestration.graph import VoxOrchestrator
     from voxos.orchestration.llm import RouterJsonLLM
 
     settings = get_settings().agent
 
     async def recall(session_id: str) -> list[str]:
-        memories = await get_memory_manager().get_relevant_memories(session_id, limit=5)
-        return [m.content for m in memories]
+        # The local profile: instant, and keyed by a user id that survives
+        # restarts (the database memory was keyed by session and slow).
+        from voxos.core.profile.store import get_profile
+
+        summary = get_profile().summary()
+        return [f"About the user:\n{summary}"] if summary else []
 
     async def observe() -> tuple[str, list[str]]:
         from voxos.tools.browser import tools as browser

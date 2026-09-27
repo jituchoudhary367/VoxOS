@@ -82,6 +82,11 @@ class OrchestrationOutcome:
     def blocked(self) -> bool:
         return any(r.blocked for r in self.results)
 
+    @property
+    def questions(self) -> list[dict[str, Any]]:
+        """Everything the workers need from the user, in goal order."""
+        return [q for r in self.results if r.status == "needs_input" for q in r.questions]
+
 
 async def _no_memories(session_id: str) -> list[str]:
     return []
@@ -199,7 +204,10 @@ class VoxOrchestrator:
         for goal in state.get("goals", []):
             if goal["id"] in by_id:
                 continue
-            if any(by_id.get(d, {}).get("status") in {"failed", "skipped"} for d in goal["depends_on"]):
+            if any(
+                by_id.get(d, {}).get("status") in {"failed", "skipped", "needs_input"}
+                for d in goal["depends_on"]
+            ):
                 result = WorkerResult(
                     goal_id=goal["id"], goal=goal["goal"], status="skipped",
                     error="An earlier part it depends on failed.",

@@ -15,7 +15,11 @@ import subprocess
 import psutil
 from pydantic import BaseModel, Field
 
+import re
+
 from voxos.observability.logger import get_logger
+
+_ASKS_TO_CLOSE = re.compile(r"\b(?:close|quit|exit|kill|shut|terminate|stop)\b", re.IGNORECASE)
 from voxos.tools.base import BaseTool, RiskLevel, ToolMetadata, ToolResult, VerificationResult, VerificationType
 
 log = get_logger(__name__)
@@ -260,6 +264,21 @@ class CloseAppTool(BaseTool):
 
     async def _execute(self, arguments: CloseAppArgs) -> ToolResult:
         title = arguments.window_title.strip()
+
+        # Closing matches every window whose title contains `title`, which
+        # can include the user's own browser with unsaved work. An agent once
+        # closed an "Amazon" window after the user only said "don't buy it".
+        # So it needs the user's own words to ask for closing, or a yes.
+        from voxos.core.conversation.pending import user_said_yes
+        from voxos.core.request_context import current_user_request
+
+        request = current_user_request()
+        if request and not (_ASKS_TO_CLOSE.search(request) or user_said_yes(request)):
+            log.warning("close_app_needs_confirmation", window=title)
+            return ToolResult.fail(
+                f"The user did not ask to close anything. Ask before closing '{title}'.",
+                "NEEDS_CONFIRMATION",
+            )
 
         try:
             import pygetwindow as gw

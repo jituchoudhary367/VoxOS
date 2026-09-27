@@ -616,3 +616,13 @@ async def test_out_of_steps_worker_answers_with_what_it_has():
     assert result.status == "done"
     assert result.answer == "Best effort: it is 1 PM."
     assert "out of steps" in llm.prompts["worker"][-1].lower()
+
+
+def test_worker_prompt_stays_small_after_many_page_reads():
+    page = {"tool": "browser.extract", "arguments": {}, "status": "SUCCESS",
+            "data": {"text": "x" * 20000, "links": [{"text": "t" * 70, "url": "u" * 120}] * 12}}
+
+    rendered = Worker._render([page] * 6)
+
+    # Two full reads (~4k each) plus four short previews, not 6 x 4k.
+    assert len(rendered) < 2 * 4000 + 4 * 600 + 1000

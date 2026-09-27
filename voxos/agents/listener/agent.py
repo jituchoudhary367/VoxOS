@@ -196,6 +196,29 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
         )
         return output
 
+    async def _ask_json(self, messages: list[LLMMessage], config: Any) -> dict[str, Any] | None:
+        """The classification JSON; None when Groq keeps failing its JSON check.
+
+        gpt-oss intermittently fails Groq's JSON validation (400
+        json_validate_failed / tool_use_failed); that crashed the whole turn.
+        """
+        from openai import BadRequestError
+
+        from voxos.orchestration.llm import _is_json_generation_error, recover_failed_generation
+
+        for attempt in range(2):
+            try:
+                response = await self._router.provider.complete(messages, config)
+                return json.loads(response.content)
+            except BadRequestError as e:
+                recovered = recover_failed_generation(e)
+                if recovered is not None:
+                    return recovered
+                if not _is_json_generation_error(e):
+                    raise
+                log.warning("listener_json_generation_failed", attempt=attempt + 1)
+        return None
+
     async def _classify_intent(self, input: ListenerInput) -> ListenerOutput:
         """Use LLM to classify intent (or fast-path for obvious patterns)."""
         # Fast path: deterministic patterns that don't need LLM
@@ -223,8 +246,15 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
         )
 
         try:
-            response = await self._router.provider.complete(messages, config)
-            data = json.loads(response.content)
+            data = await self._ask_json(messages, config)
+            if data is None:
+                # Groq failed to produce JSON twice. Guessing "chat" would
+                # drop a command; the agents can both act and just answer.
+                log.warning("listener_llm_unavailable_routing_to_agents")
+                return ListenerOutput(
+                    intent="unknown", language="en", entities={}, requires_execution=True,
+                    confidence=0.3, raw_text=input.text,
+                )
             return ListenerOutput(
                 intent=data.get("intent", "general_conversation"),
                 language=data.get("language", "en"),

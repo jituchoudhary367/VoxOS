@@ -29,7 +29,7 @@ TOOL_FAMILIES: dict[str, str] = {
     "document": "read PDF/Word/other documents",
     "desktop": "open/close apps, windows, keyboard, mouse, clipboard, screenshots",
     "browser": "drive a visible browser: open sites, search, click, read the page, YouTube, "
-               "pause/play/stop/skip video or music",
+               "pause/play/stop/skip video or music, log in with the user's saved accounts",
     "web": "search the web and extract page text without a browser window",
     "vision": "look at the current tab or the whole screen to see what is visible",
     "memory": "save or search the user's remembered facts and preferences",
@@ -60,6 +60,8 @@ Rules:
   order and use its own results, so "find X, then do something with X" is ONE goal, not two.
 - One sub-goal when the request is a single job or a single chain of steps. At most {max_goals} sub-goals.
 - Keep each goal to what the user asked; do not add extra requirements ("top 3", "summarize each article").
+- Keep buy / order / pay / send / delete requests as asked ("Buy the cheapest HP laptop on Amazon");
+  do not water them down (e.g. to "add to cart"). The agent asks the user before the final step.
 - Say WHAT each goal must achieve, not how: no clicking, typing or search-bar steps (agents choose tools).
 - Each goal is a complete, self-contained instruction (agents do not see the original request),
   with the concrete names, paths and language details from the request.

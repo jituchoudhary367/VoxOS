@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
-from voxos.agents.listener.agent import ListenerInput
+from voxos.agents.listener.agent import ListenerInput, ListenerOutput
+from voxos.core.conversation import pending
 from voxos.core.conversation.models import AssistantReply
 from voxos.core.router import asks_about_screen
 from voxos.llm.base import LLMMessage
@@ -95,6 +97,25 @@ class ConversationService:
             return reply
 
         try:
+            waiting = pending.get(session_id) if self._can_run_pipeline() else None
+            if waiting is not None and not pending.looks_like_answer(clean_text, waiting.questions):
+                # A new request instead of an answer: drop the question.
+                pending.clear(session_id)
+                waiting = None
+            if waiting is not None:
+                # Vox asked something last turn; this message is the answer
+                # ("yes", "HP", "the second one"), not a chat line.
+                pending.clear(session_id)
+                request = pending.as_request(waiting, clean_text)
+                understood = ListenerOutput(
+                    intent="answer_to_question", requires_execution=True, confidence=1.0,
+                    language="en", raw_text=request,
+                )
+                asked = " ".join(q["question"] for q in waiting.questions)
+                return await self._run_task(
+                    session_id, request, understood, user_text=clean_text, vox_question=asked,
+                )
+
             if self._listener is not None:
                 listener_output = await self._listener.process(
                     ListenerInput(
@@ -105,27 +126,62 @@ class ConversationService:
                 )
                 needs_action = listener_output.requires_execution or asks_about_screen(clean_text)
                 if needs_action and self._can_run_pipeline():
-                    task = await self._task_manager.submit_task(
-                        user_request=clean_text,
-                        session_id=session_id,
-                    )
-                    completed_task = await self._task_manager.run_pipeline(
-                        task=task,
-                        listener=_Understood(self._listener, clean_text, listener_output),
-                        strategist=self._strategist,
-                        executor=self._executor,
-                        overseer=self._overseer,
-                        permissions=self._permissions,
-                    )
-                    reply = self._reply_from_task(completed_task)
-                    await self._append_turn(session_id, role="assistant", content=reply.text)
-                    return reply
+                    return await self._run_task(session_id, clean_text, listener_output)
 
             response = await self._chat_responder(clean_text, await self._recent_context(session_id))
             reply = AssistantReply(text=response.strip() or "How can I help?", kind="info")
+            self._learn(clean_text, reply.text)
         except Exception as error:
             log.exception("conversation_turn_failed", error=str(error))
             reply = self._error_reply(error)
+        await self._append_turn(session_id, role="assistant", content=reply.text)
+        return reply
+
+    @staticmethod
+    def _learn(user_text: str, reply_text: str, task: Any = None, vox_question: str | None = None) -> None:
+        """Update the user profile after a turn (habits now, facts in the background)."""
+        from voxos.config import get_settings
+
+        if not get_settings().agent.learn_profile:
+            return
+        try:
+            from voxos.core.profile.learner import learn_in_background
+
+            learn_in_background(
+                user_text=user_text, reply_text=reply_text, task=task, vox_question=vox_question,
+            )
+        except Exception as error:  # noqa: BLE001 — never cost the user a reply
+            log.warning("profile_update_failed", error=str(error))
+
+    async def _run_task(
+        self,
+        session_id: str,
+        request: str,
+        understood: Any,
+        *,
+        user_text: str | None = None,
+        vox_question: str | None = None,
+    ) -> AssistantReply:
+        task = await self._task_manager.submit_task(user_request=request, session_id=session_id)
+        completed_task = await self._task_manager.run_pipeline(
+            task=task,
+            listener=_Understood(self._listener, request, understood),
+            strategist=self._strategist,
+            executor=self._executor,
+            overseer=self._overseer,
+            permissions=self._permissions,
+        )
+        result = getattr(completed_task, "result", None)
+        reply = self._reply_from_task(completed_task)
+        if isinstance(result, dict) and result.get("questions"):
+            pending.remember(session_id, request, result["questions"])
+        elif reply.text.rstrip().endswith("?"):
+            # An agent that finished with a question ("Shall I proceed to
+            # checkout?") is waiting too; the "no" must come back to the
+            # agents, not to chat (which claimed it "removed" the item).
+            last = re.split(r"(?<=[.!])\s+", reply.text.strip())[-1]
+            pending.remember(session_id, request, [{"question": last, "options": []}])
+        self._learn(user_text or request, reply.text, completed_task, vox_question)
         await self._append_turn(session_id, role="assistant", content=reply.text)
         return reply
 
@@ -420,14 +476,26 @@ class ConversationService:
         messages = [LLMMessage(role=item["role"], content=item["content"]) for item in context]
         if not messages or messages[-1].content != text:
             messages.append(LLMMessage(role="user", content=text))
+        system_prompt = (
+            "You are Vox, a helpful desktop voice assistant. Reply naturally and concisely. "
+            "Do not return JSON, internal task data, Markdown links, or implementation details.\n"
+            "In this reply you cannot take any action. Never say you did, removed, opened, bought, "
+            "sent or changed anything unless the conversation shows it was already done; if the user "
+            "wants something done, say you'll need them to ask for it as a command."
+        )
+        try:
+            from voxos.core.profile.store import get_profile
+
+            about = get_profile().summary()
+        except Exception:  # noqa: BLE001 — chat works without the profile
+            about = ""
+        if about:
+            system_prompt += f"\n\nWhat you know about the user (use it naturally, don't recite it):\n{about}"
         config = router.config_for(
             complexity=TaskComplexity.SIMPLE,
             temperature=0.4,
             max_tokens=300,
-            system_prompt=(
-                "You are VoxOS, a helpful desktop assistant. Reply naturally and concisely. "
-                "Do not return JSON, internal task data, Markdown links, or implementation details."
-            ),
+            system_prompt=system_prompt,
         )
         response = await router.provider.complete(messages, config)
         return response.content

@@ -25,6 +25,9 @@ class Permission(str, Enum):
     TERMINAL_EXECUTE = "terminal.execute"
     BROWSER_NAVIGATE = "browser.navigate"
     BROWSER_FORM = "browser.form"
+    # Use saved logins (the user consented by adding them with the vault CLI;
+    # the tool itself enforces the login request and the domain).
+    CREDENTIAL_USE = "credential.use"
     APPLICATION_CONTROL = "application.control"
     SYSTEM_INFO = "system.info"
     SYSTEM_MODIFY = "system.modify"
@@ -51,6 +54,7 @@ DEFAULT_PERMISSIONS: set[Permission] = {
     Permission.MEMORY_READ,
     Permission.MEMORY_WRITE,
     Permission.TERMINAL_EXECUTE,
+    Permission.CREDENTIAL_USE,
 }
 
 # Tool name → required permission
@@ -83,6 +87,7 @@ TOOL_PERMISSION_MAP: dict[str, Permission] = {
     "browser.back": Permission.BROWSER_NAVIGATE,
     "browser.scroll": Permission.BROWSER_NAVIGATE,
     "browser.media": Permission.BROWSER_NAVIGATE,
+    "browser.fill_credential": Permission.CREDENTIAL_USE,
     "vision.look": Permission.SYSTEM_INFO,
     "application.open": Permission.APPLICATION_CONTROL,
     "application.close": Permission.APPLICATION_CONTROL,

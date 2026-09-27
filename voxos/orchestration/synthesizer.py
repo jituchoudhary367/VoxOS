@@ -31,7 +31,10 @@ _SPACE_BEFORE_PUNCT = re.compile(r"\s+([.,;:])")
 
 
 def speakable(text: str) -> str:
-    """Text Vox can say aloud: no URLs or markdown, whatever the model wrote."""
+    """Text Vox can say aloud: no URLs, markdown or saved secrets, whatever the model wrote."""
+    from voxos.vault.store import redact
+
+    text = redact(text)
     text = _URL.sub("", text)
     text = _MARKDOWN.sub("", text)
     text = _DANGLING_DASH.sub(" ", text)  # the "– " a removed URL leaves behind
@@ -59,8 +62,36 @@ def _fallback(results: list[WorkerResult]) -> str:
     return " ".join(parts) or "I couldn't complete that request."
 
 
+def _question_text(questions: list[dict]) -> str:
+    """The questions as Vox says them: numbered when several, options spelled out."""
+    def one(q: dict) -> str:
+        options = q.get("options") or []
+        if len(options) >= 2:
+            return f"{q['question']} ({', '.join(options[:-1])} or {options[-1]})"
+        return q["question"]
+
+    if len(questions) == 1:
+        return one(questions[0])
+    return "I need to check a few things: " + " ".join(
+        f"{n}. {one(q)}" for n, q in enumerate(questions, 1)
+    )
+
+
 async def synthesize(
     request: str, results: list[WorkerResult], llm: JsonAsker, language: str = "en"
+) -> str:
+    """One reply: what was done and found, then any questions, asked last."""
+    questions = [q for r in results if r.status == "needs_input" for q in r.questions]
+    answered = [r for r in results if r.status != "needs_input"]
+    if questions:
+        # Questions are asked verbatim (never paraphrased away by the model).
+        summary = await _summarize(request, answered, llm, language) if answered else ""
+        return " ".join(part for part in (summary, _question_text(questions)) if part)
+    return await _summarize(request, results, llm, language)
+
+
+async def _summarize(
+    request: str, results: list[WorkerResult], llm: JsonAsker, language: str
 ) -> str:
     if len(results) == 1 and results[0].status == "done" and results[0].answer:
         return speakable(results[0].answer)

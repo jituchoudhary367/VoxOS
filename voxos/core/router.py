@@ -145,6 +145,15 @@ _FOLLOW_UP_RE = re.compile(
 )
 
 
+_LOGIN_RE = re.compile(r"\b(?:log\s*-?\s*in|login|sign\s*-?\s*in|signin|sign me in)\b", re.IGNORECASE)
+
+
+def asks_to_log_in(text: str) -> bool:
+    """Logins need the agents (saved credentials, several steps); "log in to my
+    amazon account" was guessed as opening an app called Amazon."""
+    return bool(_LOGIN_RE.search(text))
+
+
 _SCREEN_RE = re.compile(r"\b(?:screen|page|tab|window|showing|shown|visible|displayed|playing)\b")
 
 
@@ -224,6 +233,7 @@ class ExecutionRouter:
                 not tool_name
                 or is_compound_request(request_text)
                 or is_follow_up(request_text)
+                or asks_to_log_in(request_text)
                 or not _arguments_valid(tool_name, entities or {})
             ):
                 log.info("llm_intent_demoted_to_reasoning", intent=intent, tool=tool_name)

@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from voxos.config import get_settings
 from voxos.core.permissions.manager import get_permission_manager
+from voxos.vault.store import get_vault, redact
 from voxos.core.task_manager.models import Task, TaskPlan, TaskStep
 from voxos.llm.router import TaskComplexity
 from voxos.observability.logger import get_logger
@@ -44,6 +45,9 @@ OBSERVATION_CHARS = 1500
 # Page text is the observation for a page read; 1500 characters of it held
 # only the site's header, so a worker "found no laptops" on a results page.
 PAGE_TEXT_CHARS = 4000
+# Older observations shrink to a preview; the latest ones stay in full.
+FULL_OBSERVATIONS = 2
+OLD_OBSERVATION_CHARS = 300
 PAGE_TEXT_TOOLS = frozenset({"browser.extract", "web.extract", "document.read", "os.read_file"})
 # Tools that fetch a whole page; one successful read per worker is enough.
 # Only web research is capped: reading the tab on screen (browser.extract)
@@ -60,27 +64,88 @@ _ASKS_FOR_SHELL = re.compile(
 )
 
 # gpt-oss does not always use the key the prompt asks for.
-_ANSWER_KEYS = ("answer", "final_answer", "summary", "response", "result", "output")
+_ANSWER_KEYS = ("answer", "final_answer", "summary", "response", "result", "output", "message", "reply", "text")
 
 
 def answer_of(decision: dict[str, Any]) -> str:
-    """The finish answer, under whichever key the model put it."""
+    """The finish answer, under whichever key the model put it.
+
+    A finish with no answer anywhere falls back to its own "thought", which
+    is usually the conclusion; an empty finish used to fail the whole goal.
+    """
     for key in _ANSWER_KEYS:
         value = decision.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
+    if decision.get("action") == "finish":
+        thought = decision.get("thought")
+        if isinstance(thought, str) and len(thought.split()) >= 4:
+            return thought.strip()
     return ""
 
 
 class WorkerResult(BaseModel):
     goal_id: str
     goal: str
-    status: Literal["done", "failed", "skipped"]
+    status: Literal["done", "failed", "skipped", "needs_input"]
     answer: str = ""
     error: str = ""
     blocked: bool = False
     steps: list[dict[str, Any]] = Field(default_factory=list)
     reflections: int = 0
+    # needs_input: [{"question": str, "options": [str, ...]}]
+    questions: list[dict[str, Any]] = Field(default_factory=list)
+
+
+MAX_QUESTIONS = 3
+
+
+MAX_FAILURES_IN_A_ROW = 3
+
+
+def _stuck(observations: list[dict[str, Any]]) -> bool:
+    """The last few actions all failed: stop trying and answer with what is known."""
+    tail = observations[-MAX_FAILURES_IN_A_ROW:]
+    return len(tail) == MAX_FAILURES_IN_A_ROW and all(o.get("status") != "SUCCESS" for o in tail)
+
+
+def credentials_prompt() -> str:
+    """Saved logins the worker may use: names and sites, never the values."""
+    try:
+        saved = get_vault().list()
+    except Exception:  # noqa: BLE001 — keyring unavailable
+        saved = []
+    if not saved:
+        return (
+            "\nNo logins are saved. If a site needs one, ask the user to save it with "
+            "`python -m voxos.vault add <name> --domain <site>`; never ask for a password in chat.\n"
+        )
+    listing = "\n".join(f"- {c['name']}: {', '.join(c['domains'])}" for c in saved)
+    return (
+        "\nSaved logins (you never see the values; browser.fill_credential types them):\n"
+        f"{listing}\n"
+        "To log in: open the site's sign-in page, fill_credential the username (click Continue/Next\n"
+        "if the password field appears after it), fill_credential the password, then click the sign-in\n"
+        "button. Never ask the user for a password. For a one-time code or captcha, ask the user.\n"
+    )
+
+
+def clean_questions(raw: Any) -> list[dict[str, Any]]:
+    """At most three non-empty questions, each with a list of option strings."""
+    questions: list[dict[str, Any]] = []
+    for item in raw if isinstance(raw, list) else []:
+        if isinstance(item, str):
+            item = {"question": item}
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("question") or "").strip()
+        if not text:
+            continue
+        options = [str(o).strip() for o in item.get("options") or [] if str(o).strip()]
+        questions.append({"question": text, "options": options[:4]})
+        if len(questions) == MAX_QUESTIONS:
+            break
+    return questions
 
 
 WORKER_PROMPT = """You are a Vox worker agent operating the user's Windows PC. Work toward ONE goal.
@@ -90,6 +155,20 @@ Respond with JSON, either
   {{"thought": "...", "action": "tool", "tool": "<tool name>", "arguments": {{...}}}}
 or, when the goal is achieved or cannot be achieved,
   {{"thought": "...", "action": "finish", "answer": "<one or two plain sentences for the user>"}}
+or, when you need the user before going on,
+  {{"thought": "...", "action": "ask", "reason": "...",
+    "questions": [{{"question": "<short spoken question>", "options": ["<choice>", "<choice>"]}}]}}
+
+Ask (up to 3 questions at once, each with options when there are clear choices) ONLY when:
+- an error blocks the goal and the workaround changes what the user asked (another site, another
+  file, a different item): suggest it and ask whether to proceed;
+- a choice matters and neither the request, the conversation nor what you know about the user
+  decides it, and there is no sensible default;
+- the next step cannot be undone and the user did not clearly ask for it (delete, send, pay, order, post);
+- you need something only the user has (a one-time code, which account).
+Do not ask about things you can decide or find out yourself.
+If a tool fails with NEEDS_CONFIRMATION, ask the user to confirm that exact action (name the item
+and price) and stop; it will be done after they say yes. Never look for another way around it.
 
 Tools, with their exact argument names:
 {tools}
@@ -102,6 +181,8 @@ Rules:
 - The user is in India: use amazon.in (amazon.com shows an error page there), flipkart.com, prices in ₹.
   For a price limit on Amazon add &rh=p_36%3A-<max price in paise>, e.g. under ₹50,000:
   https://www.amazon.in/s?k=hp+laptop&rh=p_36%3A-5000000
+- To open a result (a product, an article), take its URL from the "links" that browser.extract
+  returns and use browser.open; clicking long titles by text is unreliable.
 - Report what the page actually shows, even if it is not a perfect match (sponsored items, a few
   over budget). Do not repeat the same search more than twice.
 - To search inside a website, open its search results URL directly instead of typing into the page,
@@ -185,15 +266,18 @@ class Worker:
         permissions: Any = None,
         language: str = "en",
     ) -> WorkerResult:
+        tools = self.tools_prompt(
+            goal.tools,
+            allow_shell=bool(_ASKS_FOR_SHELL.search(goal.goal)),
+            permissions=permissions,
+        )
         system = WORKER_PROMPT.format(
-            tools=self.tools_prompt(
-                goal.tools,
-                allow_shell=bool(_ASKS_FOR_SHELL.search(goal.goal)),
-                permissions=permissions,
-            ),
+            tools=tools,
             workspace=get_settings().workspace.workspace_path,
             home=Path.home(),
         )
+        if "browser.fill_credential" in tools:
+            system += credentials_prompt()
         task = Task(session_id=session_id, user_request=goal.goal, language=language)
         task.plan = TaskPlan(goal=goal.goal)
         observations: list[dict[str, Any]] = []
@@ -211,6 +295,16 @@ class Worker:
                     complexity=TaskComplexity.STANDARD,
                 )
                 decision = self._normalize(decision)
+                if decision.get("action") == "ask":
+                    questions = clean_questions(decision.get("questions"))
+                    if questions:
+                        metrics.increment("orchestration.worker.asked")
+                        log.info("worker_asks", goal=goal.id, questions=[q["question"] for q in questions])
+                        return WorkerResult(
+                            goal_id=goal.id, goal=goal.goal, status="needs_input",
+                            questions=questions, steps=observations, reflections=reflections,
+                            error=str(decision.get("reason") or ""),
+                        )
                 if decision.get("action") == "finish" or not decision.get("tool"):
                     answer = answer_of(decision)
                     if not answer:
@@ -240,6 +334,12 @@ class Worker:
                         error=observation.get("error") or observation["error_code"],
                         blocked=True, steps=observations, reflections=reflections,
                     )
+                if _stuck(observations):
+                    # The prompt says to stop after two failures; a worker
+                    # still retried a dead selector five times (40 s each).
+                    log.warning("worker_stuck_answering_now", goal=goal.id)
+                    budget = len(observations)
+                    break
 
             if answer is None and observations and len(observations) >= budget:
                 # Out of steps while still chasing a perfect result (Amazon
@@ -310,7 +410,7 @@ class Worker:
         {"action": "browser.open", "arguments": {...}} and {"name": ...} both
         mean a tool call; without this they read as "finished, no answer".
         """
-        if decision.get("tool") or decision.get("action") == "finish":
+        if decision.get("tool") or decision.get("action") in ("finish", "ask"):
             return decision
         for key in ("action", "name", "tool_name"):
             name = decision.get(key)
@@ -382,8 +482,11 @@ class Worker:
     ) -> str:
         parts = [f"User's request: {request}"] if request and request != goal.goal else []
         parts.append(f"Your goal: {goal.goal}")
-        if session_id and (not goal.tools or "memory" in goal.tools):
-            parts.append(f"For memory tools use user_id: {session_id}")
+        if not goal.tools or "memory" in goal.tools:
+            from voxos.core.profile.store import get_profile
+
+            # The profile's id is stable across restarts; a session id is not.
+            parts.append(f"For memory tools use user_id: {get_profile().user_id}")
         parts.append(
             "Write the answer in English."
             if language in ("en", "auto", "")
@@ -400,11 +503,17 @@ class Worker:
     @staticmethod
     def _render(observations: list[dict[str, Any]]) -> str:
         lines = []
+        # Only the latest results in full. Every page read stayed in full in
+        # every later prompt, until one step asked for 7,854 tokens — nearly
+        # a key's whole per-minute quota — and all keys were rate limited.
+        full_from = len(observations) - FULL_OBSERVATIONS
         for i, o in enumerate(observations, 1):
             args = json.dumps(o.get("arguments") or {}, ensure_ascii=False, default=str)
             if o.get("status") == "SUCCESS":
                 data = json.dumps(o.get("data"), ensure_ascii=False, default=str)
                 limit = PAGE_TEXT_CHARS if o.get("tool") in PAGE_TEXT_TOOLS else OBSERVATION_CHARS
+                if i <= full_from:
+                    limit = OLD_OBSERVATION_CHARS
                 if len(data) > limit:
                     data = data[:limit] + "…(truncated)"
                 line = f"{i}. {o['tool']}({args}) → OK: {data}"
@@ -413,4 +522,6 @@ class Worker:
             else:
                 line = f"{i}. {o['tool']}({args}) → FAILED [{o.get('error_code')}]: {o.get('error')}"
             lines.append(line)
-        return "\n".join(lines)
+        # A page can show the user's email after login, or echo a password in
+        # a bug; stored secrets never go to the model.
+        return redact("\n".join(lines))

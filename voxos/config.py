@@ -263,6 +263,8 @@ class AgentSettings(BaseSettings):
     # another company") need. Benchmarks pin "pipeline".
     orchestrator: Literal["auto", "graph", "pipeline"] = "graph"
     max_subgoals: int = 4
+    # Learn facts and habits about the user into the local profile.
+    learn_profile: bool = True
     worker_max_steps: int = 6
     task_timeout_seconds: int = 300
     step_timeout_seconds: int = 60

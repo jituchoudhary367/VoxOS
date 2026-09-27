@@ -157,6 +157,7 @@ def _register_default_tools(registry: ToolRegistry) -> None:
     from voxos.tools.browser.youtube import YouTubeSearchTool, YouTubePlayTool
     from voxos.tools.browser.media import BrowserMediaTool
     from voxos.tools.vision.tools import VisionLookTool
+    from voxos.vault.tool import FillCredentialTool
     # Desktop
     from voxos.tools.desktop.screen import DesktopScreenshotTool
     from voxos.tools.desktop.apps import ListAppsTool, OpenAppTool, CloseAppTool
@@ -210,6 +211,7 @@ def _register_default_tools(registry: ToolRegistry) -> None:
     registry.register(YouTubeSearchTool())
     registry.register(YouTubePlayTool())
     registry.register(BrowserMediaTool())
+    registry.register(FillCredentialTool())
 
     # ── Vision ────────────────────────────────────────────────────────────────
     registry.register(VisionLookTool())

@@ -20,10 +20,13 @@ Tools:
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Any
 from pydantic import BaseModel, Field
 
 from voxos.observability.logger import get_logger
+from voxos.core.conversation.pending import user_said_yes
+from voxos.core.request_context import current_user_request
 from voxos.tools.browser.tabs import current_tab
 from voxos.tools.base import BaseTool, RiskLevel, ToolResult, ToolMetadata, VerificationResult, VerificationType
 
@@ -77,6 +80,21 @@ async def goto(page: Any, url: str, *, timeout_ms: int = 25000) -> None:
                 ) from e
             log.warning("browser_navigation_became_download_retrying", url=url)
             await asyncio.sleep(1.5)
+
+
+_MAIN_LINKS_JS = """() => {
+  const main = document.querySelector('main, [role="main"], #search, #content, #contents, article') || document.body;
+  const seen = new Set();
+  const links = [];
+  for (const a of main.querySelectorAll('a[href]')) {
+    const text = (a.innerText || a.getAttribute('aria-label') || '').trim().replace(/\\s+/g, ' ');
+    if (text.length < 12 || seen.has(a.href) || !a.href.startsWith('http')) continue;
+    seen.add(a.href);
+    links.push({text: text.slice(0, 70), url: a.href.split('&ref=')[0].split('/ref=')[0].slice(0, 120)});
+    if (links.length === 12) break;
+  }
+  return links;
+}"""
 
 
 def label_tab(key: str, label: str) -> None:
@@ -373,6 +391,42 @@ class BrowserClickArgs(BaseModel):
     role: str | None = Field(None, description="ARIA role (e.g. 'button', 'link').")
 
 
+# Buttons whose effect cannot be taken back. "Add to cart" is not here: it
+# can be undone and is how a user compares options.
+_IRREVERSIBLE = re.compile(
+    r"buy[\s_-]*now|place[\s_-]*(?:your[\s_-]*)?order|pay(?:[\s_-]*now|ment)?\b|\bpay\b|"
+    r"confirm[\s_-]*(?:order|purchase|payment|booking)|complete[\s_-]*(?:purchase|order|payment)|"
+    r"proceed[\s_-]*to[\s_-]*(?:pay|payment|buy)|checkout[\s_-]*now|\bdelete\b|\bremove[\s_-]*account\b|"
+    r"\bsend\b|\bpost\b|\bpublish\b|\btransfer\b|\bsubscribe\b|\bunsubscribe\b",
+    re.IGNORECASE,
+)
+
+
+def _first_visible(locator: Any) -> Any:
+    """The first visible match (plain `.first` may be a hidden duplicate)."""
+    try:
+        return locator.filter(visible=True).first
+    except (AttributeError, TypeError):  # older Playwright or a test double
+        return locator.first
+
+
+async def _click_label(page: Any, args: "BrowserClickArgs") -> str:
+    """What the click targets, as text: the given text, or the element's label and selector."""
+    parts = [args.text or "", args.selector or ""]
+    if args.selector:
+        try:
+            # Short timeout: a missing element made this wait Playwright's
+            # default 30 s before the click even started.
+            parts.append(await page.locator(args.selector).first.evaluate(
+                "e => [e.innerText, e.value, e.getAttribute('aria-label'), e.title, e.id, e.name]"
+                ".filter(Boolean).join(' ')",
+                timeout=1500,
+            ))
+        except Exception:  # noqa: BLE001 — the click itself will report a bad selector
+            pass
+    return " ".join(p for p in parts if p)
+
+
 class BrowserClickTool(BaseTool):
     @property
     def metadata(self) -> ToolMetadata:
@@ -394,18 +448,29 @@ class BrowserClickTool(BaseTool):
         try:
             page = await _get_browser_session()
 
+            label = await _click_label(page, args)
+            if _IRREVERSIBLE.search(label) and not user_said_yes(current_user_request()):
+                # Enforced here, not in a prompt: an agent once put a laptop in
+                # the cart for "buy the cheapest laptop" without asking.
+                log.warning("click_needs_confirmation", target=label[:80])
+                return ToolResult.fail(
+                    f"Clicking '{label.strip()[:60]}' cannot be undone. Ask the user to confirm first "
+                    "(action ask), then do it after they say yes.",
+                    "NEEDS_CONFIRMATION",
+                )
+
+            # Only visible matches: Amazon has two #add-to-cart-button
+            # elements and the first is hidden, so clicking "the first" timed out.
             if args.selector:
-                await page.click(args.selector, timeout=10000)
+                await _first_visible(page.locator(args.selector)).click(timeout=10000)
                 return ToolResult.ok(data={"clicked": args.selector})
 
             if args.text:
-                locator = page.get_by_text(args.text, exact=False)
-                await locator.first.click(timeout=10000)
+                await _first_visible(page.get_by_text(args.text, exact=False)).click(timeout=10000)
                 return ToolResult.ok(data={"clicked_text": args.text})
 
             if args.role:
-                locator = page.get_by_role(args.role)
-                await locator.first.click(timeout=10000)
+                await _first_visible(page.get_by_role(args.role)).click(timeout=10000)
                 return ToolResult.ok(data={"clicked_role": args.role})
 
             return ToolResult.fail("Must specify selector, text, or role.", "MISSING_TARGET")
@@ -516,7 +581,14 @@ class BrowserExtractTool(BaseTool):
             if not text:
                 return ToolResult.fail(f"Selector '{selector}' not found or empty", "NOT_FOUND")
 
-            return ToolResult.ok(data={"text": text[:args.max_chars], "url": page.url})
+            # The main region's links, so an agent can open a result by URL:
+            # clicking a product title by text kept timing out on Amazon,
+            # which repeats titles in hidden elements.
+            try:
+                links = await page.evaluate(_MAIN_LINKS_JS)
+            except Exception:  # noqa: BLE001 — text alone is still useful
+                links = []
+            return ToolResult.ok(data={"url": page.url, "links": links, "text": text[:args.max_chars]})
         except Exception as e:
             log.exception("browser_extract_error", error=str(e))
             return ToolResult.fail(error=str(e), error_code="BROWSER_ERROR")

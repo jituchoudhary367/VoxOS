@@ -38,6 +38,15 @@ def _redact_secrets(logger: Any, method: str, event_dict: EventDict) -> EventDic
     for key in list(event_dict.keys()):
         if any(s in key.lower() for s in SENSITIVE_KEYS):
             event_dict[key] = "***REDACTED***"
+    # Saved-login values, wherever they appear. Only secrets the vault has
+    # already loaded are known here, so logging never touches the keyring.
+    vault_module = sys.modules.get("voxos.vault.store")
+    vault = getattr(vault_module, "_vault", None) if vault_module else None
+    known = getattr(vault, "_seen", None)
+    if known:
+        for key, value in event_dict.items():
+            if isinstance(value, str) and any(len(s) >= 4 and s in value for s in known):
+                event_dict[key] = vault.redact(value)
     return event_dict
 
 

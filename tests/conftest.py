@@ -6,6 +6,16 @@ Provides mock data, db sessions, and event bus mocks for testing.
 
 import pytest
 import asyncio
+
+
+@pytest.fixture(autouse=True)
+def _private_user_data(tmp_path, monkeypatch):
+    """Tests never touch the real profile/vault or learn through a real LLM."""
+    monkeypatch.setenv("VOX_DATA_DIR", str(tmp_path / "vox-data"))
+    monkeypatch.setenv("AGENT_LEARN_PROFILE", "false")
+    import voxos.core.profile.store as profile_store
+
+    monkeypatch.setattr(profile_store, "_profile", None)
 from typing import AsyncGenerator
 
 from voxos.core.task_manager.models import Task, TaskStatus
