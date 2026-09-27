@@ -18,6 +18,7 @@ Worker gets one more round (`extra_steps`) with the critique in view.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -38,6 +39,26 @@ metrics = get_metrics()
 # The world said no. Retrying with other tools would be routing around it.
 STOP_ERRORS = frozenset({"BLOCKED", "SECURITY_BLOCKED", "PERMISSION_DENIED", "APPROVAL_REJECTED"})
 OBSERVATION_CHARS = 1500
+
+SHELL_TOOL = "os.shell_command"
+# Shell commands wait for the user's approval, so a worker only gets the
+# shell tool when its goal is actually about running a command.
+_ASKS_FOR_SHELL = re.compile(
+    r"\b(?:command|shell|terminal|powershell|cmd|script|run|execute|install|pip|git|npm)\b",
+    re.IGNORECASE,
+)
+
+# gpt-oss does not always use the key the prompt asks for.
+_ANSWER_KEYS = ("answer", "final_answer", "summary", "response", "result", "output")
+
+
+def answer_of(decision: dict[str, Any]) -> str:
+    """The finish answer, under whichever key the model put it."""
+    for key in _ANSWER_KEYS:
+        value = decision.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 class WorkerResult(BaseModel):
@@ -66,6 +87,7 @@ The user's workspace folder is {workspace} (use absolute paths; "my workspace" m
 The user's home folder is {home}.
 
 Rules:
+- Never use os.shell_command when another tool can do the job: shell commands wait for the user's approval.
 - Do ONLY your goal. Other agents are handling the rest of the user's request at the same time; the full request is shown only for context.
 - Use only the tools above, with exactly the argument names shown.
 - Base facts on tool results, never guess (times, file names, sizes, contents).
@@ -98,10 +120,12 @@ class Worker:
         self._max_steps = max_steps
         self._extra_steps = extra_steps
 
-    def tools_prompt(self, families: list[str]) -> str:
+    def tools_prompt(self, families: list[str], allow_shell: bool = True) -> str:
         from voxos.agents.strategist.agent import describe_tools
 
         lines = describe_tools(self._registry).splitlines()
+        if not allow_shell:
+            lines = [line for line in lines if not line.startswith(f"- {SHELL_TOOL}(")]
         if not families:
             return "\n".join(lines)
         prefixes = tuple(f"- {family}." for family in families)
@@ -118,7 +142,7 @@ class Worker:
         language: str = "en",
     ) -> WorkerResult:
         system = WORKER_PROMPT.format(
-            tools=self.tools_prompt(goal.tools),
+            tools=self.tools_prompt(goal.tools, allow_shell=bool(_ASKS_FOR_SHELL.search(goal.goal))),
             workspace=get_settings().workspace.workspace_path,
             home=Path.home(),
         )
@@ -139,7 +163,9 @@ class Worker:
                     complexity=TaskComplexity.STANDARD,
                 )
                 if decision.get("action") == "finish" or not decision.get("tool"):
-                    answer = str(decision.get("answer") or "").strip()
+                    answer = answer_of(decision)
+                    if not answer:
+                        log.warning("worker_empty_finish", goal=goal.id, keys=sorted(decision))
                     break
 
                 observation = await self._act(task, goal, len(observations) + 1, decision, session_id, permissions)
@@ -161,6 +187,14 @@ class Worker:
                     steps=observations, reflections=reflections,
                 )
             if reflections > 1:
+                if answer:
+                    # The critic already had its retry. A real answer beats
+                    # none; the synthesizer still sees what failed.
+                    metrics.increment("orchestration.worker.done_unconfirmed")
+                    return WorkerResult(
+                        goal_id=goal.id, goal=goal.goal, status="done", answer=answer,
+                        steps=observations, reflections=reflections,
+                    )
                 break
             critique = str(verdict.get("missing") or "The goal is not achieved yet.")
             budget = len(observations) + self._extra_steps
@@ -215,7 +249,10 @@ class Worker:
         self, goal: SubGoal, observations: list[dict[str, Any]], answer: str | None
     ) -> dict[str, Any]:
         if not answer:
-            return {"satisfied": False, "missing": "No answer was given."}
+            return {
+                "satisfied": False,
+                "missing": 'You finished without an answer. Finish again with the findings in the "answer" field.',
+            }
         user = (
             f"Goal: {goal.goal}\n\nWhat the worker did:\n{self._render(observations)}"
             f"\n\nFinal answer: {answer}"

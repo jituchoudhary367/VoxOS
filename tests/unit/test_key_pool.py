@@ -176,7 +176,8 @@ async def test_stream_fails_over_on_rate_limit():
     assert chunks == ["b"]
 
 
-def test_settings_collect_every_groq_key_once(monkeypatch):
+def test_settings_collect_every_groq_key_once(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)  # no real .env
     monkeypatch.setenv("GROQ_API_KEYS", "k1, k2 ,k3")
     monkeypatch.setenv("GROQ_API_KEY", "k1")
     monkeypatch.setenv("GROQ_API_KEY_2", "k4")
@@ -184,7 +185,8 @@ def test_settings_collect_every_groq_key_once(monkeypatch):
     assert LLMSettings(_env_file=None).all_groq_keys() == ["k1", "k2", "k3", "k4"]
 
 
-def test_settings_single_key_still_works(monkeypatch):
+def test_settings_single_key_still_works(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)  # no real .env
     monkeypatch.delenv("GROQ_API_KEYS", raising=False)
     monkeypatch.delenv("GROQ_API_KEY_2", raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "only")
@@ -204,7 +206,8 @@ def test_retry_after_reads_groq_message_when_header_missing():
     assert retry_after_seconds(error) == pytest.approx(62.5)
 
 
-def test_router_pools_every_configured_key(monkeypatch):
+def test_router_pools_every_configured_key(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)  # no real .env
     from voxos.llm.router import build_primary_provider
 
     monkeypatch.setenv("GROQ_API_KEYS", "k1,k2,k3")
@@ -252,3 +255,15 @@ async def test_provider_records_quota_from_response_headers():
 
     assert response.content == "ok"
     assert provider.rate_limit_state == {"remaining_tokens": 5120, "remaining_requests": 999}
+
+
+def test_settings_read_any_numbered_groq_key(monkeypatch, tmp_path):
+    for name in ("GROQ_API_KEYS", "GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_10"):
+        monkeypatch.delenv(name, raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("GROQ_API_KEY=k1\nGROQ_API_KEY_2=k2\nGROQ_API_KEY_10=k10\nGROQ_API_KEY_3=k3\n")
+    monkeypatch.setenv("GROQ_API_KEY_4", "k4")
+
+    settings = LLMSettings(_env_file=str(env_file))
+
+    assert settings.all_groq_keys(env_files=[str(env_file)]) == ["k1", "k2", "k3", "k4", "k10"]

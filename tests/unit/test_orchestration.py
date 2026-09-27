@@ -415,3 +415,103 @@ async def test_failed_worker_reports_the_tool_error_not_the_critique():
 
     assert result.status == "failed"
     assert result.error == "duckduckgo-search is not installed"
+
+
+async def test_worker_accepts_answer_under_another_key():
+    llm = ScriptedLLM(
+        worker=[{"thought": "done", "action": "finish", "summary": "Groq raised $650M."}],
+        reflect=[SATISFIED],
+    )
+
+    result = await Worker(llm, FakeExecutor(), FakeOverseer()).run(GOAL, request="x", session_id="s")
+
+    assert result.status == "done"
+    assert result.answer == "Groq raised $650M."
+
+
+async def test_answer_survives_a_second_unsatisfied_review():
+    llm = ScriptedLLM(
+        worker=[_finish("Partial news summary."), _finish("Partial news summary.")],
+        reflect=[{"satisfied": False, "missing": "more detail"}, {"satisfied": False, "missing": "more detail"}],
+    )
+
+    result = await Worker(llm, FakeExecutor(), FakeOverseer()).run(GOAL, request="x", session_id="s")
+
+    assert result.status == "done"
+    assert result.answer == "Partial news summary."
+
+
+def test_shell_tool_only_offered_when_the_goal_asks_for_a_command():
+    worker = Worker(ScriptedLLM(), FakeExecutor(), FakeOverseer())
+
+    assert "os.shell_command" not in worker.tools_prompt(["os"], allow_shell=False)
+    assert "os.list_dir" in worker.tools_prompt(["os"], allow_shell=False)
+    assert "os.shell_command" in worker.tools_prompt(["os"], allow_shell=True)
+
+
+async def test_counting_files_worker_never_sees_the_shell():
+    seen = {}
+
+    llm = ScriptedLLM(worker=[_finish("4 files")], reflect=[SATISFIED])
+    worker = Worker(llm, FakeExecutor(), FakeOverseer())
+    original = worker.tools_prompt
+
+    def spy(families, allow_shell=True):
+        seen["allow_shell"] = allow_shell
+        return original(families, allow_shell)
+
+    worker.tools_prompt = spy
+    await worker.run(SubGoal(id="g1", goal="Count the files in the workspace", tools=["os"]), request="", session_id="s")
+
+    assert seen["allow_shell"] is False
+
+
+async def test_json_validate_failed_is_retried_once():
+    import httpx
+    from openai import BadRequestError
+
+    from voxos.llm.base import LLMConfig, LLMResponse
+    from voxos.orchestration.llm import RouterJsonLLM
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    error = BadRequestError(
+        "json_validate_failed",
+        response=httpx.Response(400, request=request),
+        body={"error": {"code": "json_validate_failed", "failed_generation": ""}},
+    )
+
+    class Provider:
+        calls = 0
+
+        async def complete(self, messages, config):
+            Provider.calls += 1
+            if Provider.calls == 1:
+                raise error
+            return LLMResponse(content='{"reply": "ok"}', model="m")
+
+    class Router:
+        provider = Provider()
+
+        def config_for(self, *args, **kwargs):
+            return LLMConfig(model="m")
+
+    assert await RouterJsonLLM(Router()).ask("synthesizer", "s", "u") == {"reply": "ok"}
+    assert Provider.calls == 2
+
+
+def test_native_tool_call_is_recovered_as_a_worker_action():
+    import httpx
+    from openai import BadRequestError
+
+    from voxos.orchestration.llm import recover_failed_generation
+
+    body = {"error": {
+        "code": "tool_use_failed",
+        "failed_generation": '{"name": "web.extract", "arguments": {"url": "https://groq.com/news"}}',
+    }}
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    error = BadRequestError("tool_use_failed", response=httpx.Response(400, request=request), body=body)
+
+    assert recover_failed_generation(error) == {
+        "action": "tool", "tool": "web.extract", "arguments": {"url": "https://groq.com/news"},
+    }

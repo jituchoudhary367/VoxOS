@@ -7,11 +7,14 @@ Secrets are NEVER hard-coded here. Use .env.example as a template.
 
 from __future__ import annotations
 
+import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from dotenv import dotenv_values
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +26,9 @@ def _vox_alias(suffix: str) -> AliasChoices:
     so existing .env files keep working. VOX_* wins when both are set.
     """
     return AliasChoices(f"VOX_{suffix}", f"JARVIS_{suffix}")
+
+
+_NUMBERED_GROQ_KEY = re.compile(r"GROQ_API_KEY_(\d+)")
 
 
 def _env_file_paths() -> tuple[str, ...]:
@@ -120,12 +126,27 @@ class LLMSettings(BaseSettings):
             return v
         return v
 
-    def all_groq_keys(self) -> list[str]:
-        """Every configured Groq key, in order, without duplicates."""
+    def all_groq_keys(self, env_files: list[str] | None = None) -> list[str]:
+        """Every configured Groq key, in order, without duplicates.
+
+        Reads GROQ_API_KEYS (comma-separated), GROQ_API_KEY and any
+        GROQ_API_KEY_<n> from the environment or the .env files.
+        """
+        numbered: dict[int, str] = {}
+        sources: list[dict[str, str | None]] = [
+            dotenv_values(f) for f in (env_files or _env_file_paths()) if Path(f).is_file()
+        ]
+        sources.append(dict(os.environ))  # the environment wins over .env
+        for source in sources:
+            for name, value in source.items():
+                match = _NUMBERED_GROQ_KEY.fullmatch(name.upper())
+                if match and value:
+                    numbered[int(match.group(1))] = value
         candidates = [
             *self.groq_api_keys.split(","),
             self.groq_api_key,
             self.groq_api_key_2,
+            *(numbered[n] for n in sorted(numbered)),
         ]
         keys: list[str] = []
         for key in (k.strip() for k in candidates):

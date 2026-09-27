@@ -68,9 +68,20 @@ def recover_failed_generation(error: Exception) -> dict[str, Any] | None:
     except ValueError:
         return None
     arguments = value.get("arguments")
-    if "name" in value and isinstance(arguments, dict):
+    name = str(value.get("name") or "")
+    if name and isinstance(arguments, dict):
+        # A native call to one of our tools (e.g. "web.extract"): the model
+        # meant a worker action, not an answer object.
+        if "." in name and "action" not in arguments:
+            return {"action": "tool", "tool": name, "arguments": arguments}
         return arguments
     return value
+
+
+def _is_json_generation_error(error: Exception) -> bool:
+    body = getattr(error, "body", None)
+    detail = body.get("error") if isinstance(body, dict) and isinstance(body.get("error"), dict) else body
+    return isinstance(detail, dict) and detail.get("code") in {"json_validate_failed", "tool_use_failed"}
 
 
 class RouterJsonLLM:
@@ -95,16 +106,22 @@ class RouterJsonLLM:
             response_format={"type": "json_object"},
             system_prompt=system,
         )
-        try:
-            async with metrics.async_timer("orchestration.llm", role=role):
-                response = await self._router.provider.complete(
-                    [LLMMessage(role="user", content=user)], config
-                )
-        except BadRequestError as e:
-            recovered = recover_failed_generation(e)
-            if recovered is None:
+        messages = [LLMMessage(role="user", content=user)]
+        for attempt in range(2):
+            try:
+                async with metrics.async_timer("orchestration.llm", role=role):
+                    response = await self._router.provider.complete(messages, config)
+                break
+            except BadRequestError as e:
+                recovered = recover_failed_generation(e)
+                if recovered is not None:
+                    metrics.increment("orchestration.llm.recovered_tool_call", role=role)
+                    return recovered
+                # Groq sometimes fails its own JSON check with an empty
+                # generation; the same request usually succeeds next time.
+                if attempt == 0 and _is_json_generation_error(e):
+                    log.warning("orchestration_llm_json_retry", role=role)
+                    continue
                 raise
-            metrics.increment("orchestration.llm.recovered_tool_call", role=role)
-            return recovered
         metrics.increment("orchestration.llm.tokens", value=response.total_tokens, role=role)
         return parse_json_object(response.content)
