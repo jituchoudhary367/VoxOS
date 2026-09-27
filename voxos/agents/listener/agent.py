@@ -16,6 +16,7 @@ Output: structured intent + entities + language
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -100,6 +101,28 @@ Common intents:
 - create_document, summarize_document
 - check_email, send_email (requires explicit user authorization)
 """
+
+# A second action after the first ("... and also tell me ...").
+_MORE_ACTIONS = re.compile(r"\s(?:and|then|also|after that|afterwards|plus)\s")
+
+_ENGINES = ("google", "youtube", "bing", "wikipedia")
+_ENGINE_FIRST = re.compile(rf"^(?:on\s+)?({'|'.join(_ENGINES)})\s+(?:for\s+)?(.+)$")
+_ENGINE_LAST = re.compile(rf"^(.+?)\s+(?:on|in|using)\s+({'|'.join(_ENGINES)})$")
+_THE_WEB = re.compile(r"^(?:the\s+)?(?:web|internet|net|online)\s+(?:for\s+)?(.+)$")
+
+
+def _search_target(text: str) -> tuple[str, str]:
+    """Split "google for best laptops" into ("best laptops", "google")."""
+    text = text.strip()
+    if text in _ENGINES:  # "search google" = go to Google
+        return text, text
+    if match := _ENGINE_FIRST.match(text):
+        return match.group(2).strip(), match.group(1)
+    if match := _ENGINE_LAST.match(text):
+        return match.group(1).strip(), match.group(2)
+    if match := _THE_WEB.match(text):
+        return match.group(1).strip(), "bing"
+    return text, "bing"
 
 
 class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
@@ -240,19 +263,22 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
             r"^(?:(?:open (?:chrome|browser) and )|now )?search(?: for)?\s+(.+)$",
             text_clean,
         )
-        if browser_search:
-            query = browser_search.group(1).strip()
+        # Only a search and nothing else. "search the web for X and also tell
+        # me my CPU" is two jobs; typing the whole sentence into Bing was the
+        # bug, so anything with a further action goes to the AI instead.
+        if browser_search and not _MORE_ACTIONS.search(f" {browser_search.group(1)} "):
+            query, engine = _search_target(browser_search.group(1).strip())
             if query:
                 return ListenerOutput(
                     intent="search_web_browser",
                     language="en",
-                    entities={"query": query, "engine": "google" if query == "google" else "bing"},
+                    entities={"query": query, "engine": engine},
                     requires_execution=True,
                     confidence=1.0,
                 )
 
         # If it's a complex multi-part request, bypass fast path for Strategist routing
-        complex_keywords = [" and ", " then ", " after ", " search ", " play ", " summarize ", " find "]
+        complex_keywords = [" and ", " then ", " also ", " after ", " search ", " play ", " summarize ", " find "]
         if any(kw in text_lower for kw in complex_keywords):
             return None
 
