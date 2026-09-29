@@ -6,7 +6,7 @@ from typing import Optional
 
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from voxos.ui.hotkey import HotkeyListener
 from voxos.observability.logger import get_logger
@@ -82,8 +82,17 @@ class VoxApp(QObject):
         self.voice = None
         self.wake_word_engine = None
 
-        # Setup Wake Word
-        self.setup_wake_word()
+        # Routines: check every 30 s whether one is due.
+        self._routine_timer = QTimer(self)
+        self._routine_timer.timeout.connect(self._check_routines)
+        self._routine_timer.start(30_000)
+        QTimer.singleShot(5_000, self._check_routines)
+
+        # The wake word engine takes ~15-20 s to import and load its models.
+        # Load it off the main thread so the window opens (and animates) at
+        # once; its status signal is queued back to the UI thread.
+        import threading
+        threading.Thread(target=self.setup_wake_word, name="wakeword-setup", daemon=True).start()
 
     def _handle_status(self, text: str, color: str):
         if hasattr(self, 'dashboard_window') and self.dashboard_window:
@@ -121,19 +130,14 @@ class VoxApp(QObject):
 
     def setup_tray(self):
         self.tray = QSystemTrayIcon()
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "logo.jpg")
-        if os.path.exists(icon_path):
-            icon = QIcon(icon_path)
-        else:
-            from PySide6.QtWidgets import QStyle
-            icon = self.app.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
-            
+        icon = vox_icon()
+        self.tray.setToolTip("Vox")
+
         self.app.setWindowIcon(icon)
         self.tray.setIcon(icon)
         self.tray.setVisible(True)
         
-        # Load windows lazily to prevent blocking startup
-        self.settings_window = None
+        # Load the window lazily to prevent blocking startup
         self.dashboard_window = None
         
         menu = QMenu()
@@ -142,6 +146,10 @@ class VoxApp(QObject):
         dash_action.triggered.connect(self.show_dashboard)
         menu.addAction(dash_action)
         
+        profile_action = QAction("Profile", self)
+        profile_action.triggered.connect(self.show_profile)
+        menu.addAction(profile_action)
+
         settings_action = QAction("Settings", self)
         settings_action.triggered.connect(self.show_settings)
         menu.addAction(settings_action)
@@ -161,23 +169,43 @@ class VoxApp(QObject):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self.show_dashboard()
 
-    def show_dashboard(self):
+    def ensure_dashboard(self):
+        """The main window, created on first use but not necessarily shown."""
         if not self.dashboard_window:
             from voxos.ui.dashboard import InteractionDashboard
-            self.dashboard_window = InteractionDashboard()
+            self.dashboard_window = InteractionDashboard(session_id=self.session_id)
             self.dashboard_window.chat_message_sent.connect(self._handle_chat_message)
             self.dashboard_window.voice_toggle_requested.connect(self.toggle_voice_mode)
+            self.dashboard_window.restart_requested.connect(self.restart)
+            self.dashboard_window.routine_run_requested.connect(self.run_routine)
+            self.dashboard_window.voice_stop_requested.connect(self.stop_listening)
+        return self.dashboard_window
+
+    def show_dashboard(self):
+        self.ensure_dashboard()
         self.dashboard_window.show()
         self.dashboard_window.raise_()
         self.dashboard_window.activateWindow()
 
     def show_settings(self):
-        if not self.settings_window:
-            from voxos.ui.settings_window import SettingsWindow
-            self.settings_window = SettingsWindow()
-        self.settings_window.show()
-        self.settings_window.raise_()
-        self.settings_window.activateWindow()
+        self.show_dashboard()
+        self.dashboard_window.show_page("settings")
+
+    def show_profile(self):
+        self.show_dashboard()
+        self.dashboard_window.show_page("profile")
+
+    def restart(self):
+        """Start a fresh copy of Vox (so saved settings load), then quit this one."""
+        from PySide6.QtCore import QProcess
+
+        log.info("restarting_voxos")
+        self.stop_backend()  # free port 8000 before the new copy binds it
+        if getattr(sys, "frozen", False):
+            QProcess.startDetached(sys.executable, sys.argv[1:], os.getcwd())
+        else:
+            QProcess.startDetached(sys.executable, sys.argv, os.getcwd())
+        self.quit()
 
     # ─── Wake-up paths ────────────────────────────────────────────────────
     # Two ways to reach Vox, both ending in start_listening():
@@ -203,9 +231,12 @@ class VoxApp(QObject):
             self._set_push_to_talk_open(True)
             return
 
-        self.show_dashboard()
-        if getattr(self, "dashboard_window", None):
-            self.dashboard_window.switch_mode(1)
+        # The window comes forward only if it already is; otherwise the voice
+        # pill appears above the taskbar and the window stays out of the way.
+        dashboard = self.ensure_dashboard()
+        if dashboard._window_in_front():
+            dashboard.switch_mode(1)
+        dashboard.set_voice_active(True)
 
         self.status_changed.emit("Vox: Listening...", "#FF00FF")
         self.pipeline_running = True
@@ -232,6 +263,8 @@ class VoxApp(QObject):
         self.pipeline_running = False
         self._push_to_talk = False
         log.info("voice_mode_deactivated")
+        if self.dashboard_window:
+            self.dashboard_window.set_voice_active(False)
 
         if self._voice_task:
             self._voice_task.cancel()
@@ -331,6 +364,8 @@ class VoxApp(QObject):
             if self.pipeline_running:
                 self.pipeline_running = False
                 self.status_changed.emit(self._idle_status(), "#00FFCC")
+            if self.dashboard_window:
+                self.dashboard_window.set_voice_active(False)
             if self.wake_word_engine:
                 self.wake_word_engine.resume()
 
@@ -338,7 +373,31 @@ class VoxApp(QObject):
         if self._loop:
             self._loop.create_task(self._run_chat_task(text))
 
-    async def _run_chat_task(self, text: str):
+    # ─── Routines ─────────────────────────────────────────────────────────
+
+    def _check_routines(self):
+        from datetime import datetime
+        from voxos.ui.routines import get_routines
+
+        store, now = get_routines(), datetime.now()
+        for routine in store.due(now):
+            store.mark_ran(routine, now)
+            self.run_routine(routine)
+
+    def run_routine(self, routine):
+        """Run a routine's sentence as if it had been typed, and say so."""
+        log.info("routine_run", name=routine.name)
+        dashboard = self.ensure_dashboard()
+        dashboard.begin_request("routine")
+        dashboard.chat_page.add(f"Routine · {routine.name}", "system")
+        dashboard.chat_page.add(routine.command, "user")
+        if not dashboard._window_in_front():
+            self.tray.showMessage("Vox routine", f"Running “{routine.name}”…", vox_icon(), 3000)
+        if self._loop:
+            self._loop.create_task(self._run_chat_task(routine.command, notify_title=routine.name))
+        dashboard.routines_page.refresh()
+
+    async def _run_chat_task(self, text: str, notify_title: str | None = None):
         self.status_changed.emit("Vox: Thinking...", "#A855F7")
         try:
             from voxos.agents.listener.agent import ListenerAgent
@@ -367,6 +426,9 @@ class VoxApp(QObject):
 
             reply = await service.handle_text(text, self.session_id)
             self.transcript_received.emit(reply_text(reply))
+            dashboard = self.dashboard_window
+            if notify_title and dashboard and not dashboard._window_in_front():
+                self.tray.showMessage(notify_title, reply_text(reply)[:240], vox_icon(), 8000)
         except Exception as e:
             log.exception("chat_task_error", error=str(e))
             self.transcript_received.emit(
@@ -386,24 +448,67 @@ class VoxApp(QObject):
         self.app.quit()
 
 
+def vox_icon() -> QIcon:
+    """The Vox app icon: the .ico carries a hand-tuned drawing for every size."""
+    ico = os.path.join(os.path.dirname(__file__), "assets", "vox.ico")
+    if os.path.exists(ico):
+        return QIcon(ico)
+    from PySide6.QtGui import QPixmap
+    from voxos.ui import brand
+
+    icon = QIcon()
+    for px, data in brand.app_icon_pngs().items():
+        pixmap = QPixmap()
+        pixmap.loadFromData(data, "PNG")
+        icon.addPixmap(pixmap)
+    return icon
+
+
 def run_ui(session_id: str):
     """Entry point for the PySide6 UI."""
     if qasync is None:
         raise ImportError("qasync is required for VoxOS UI. Install with `pip install qasync`.")
-        
+
+    if os.name == "nt":
+        # Group under Vox's own taskbar button and icon, not python.exe's.
+        import ctypes
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Soulplex.Vox")
+        except Exception:  # noqa: BLE001
+            pass
+
     app = QApplication.instance() or QApplication(sys.argv)
-    
+    app.setApplicationName("Vox")
+    app.setWindowIcon(vox_icon())
+
+    from voxos.ui.theme import Fonts, stylesheet
+    Fonts.resolve()
+    app.setStyleSheet(stylesheet())
+
     loop = qasync.QEventLoop(app)
     asyncio.set_event_loop(loop)
-    
-    voxos = VoxApp(session_id=session_id)
-    print("VoxOS initialization complete. Tray icon created.")
-    
-    # Force the settings window to show up immediately so we know it's alive!
-    print("Forcing settings window to show...")
-    voxos.show_settings()
-    voxos.show_dashboard()
-    
+
+    from voxos.ui.splash import Splash
+    splash = Splash()
+    splash.show()
+    holder: dict[str, VoxApp] = {}
+
+    def boot() -> None:
+        splash.set_status("Starting the agent engine…", 0.35)
+        voxos = holder["app"] = VoxApp(session_id=session_id)
+        print("VoxOS initialization complete. Tray icon created.")
+        splash.set_status("Opening your workspace…", 0.75)
+        voxos.show_dashboard()
+        splash.finish(voxos.dashboard_window)
+
+    # Let the mark build itself before start-up work takes the main thread.
+    QTimer.singleShot(1300, boot)
+
+    # Ctrl+C in the terminal: shut down properly (stop the backend, the mic)
+    # instead of a KeyboardInterrupt landing inside whatever Qt callback ran.
+    import signal
+    signal.signal(signal.SIGINT, lambda *_: holder["app"].quit() if "app" in holder else app.quit())
+
     print("Entering Qt event loop...")
     with loop:
         loop.run_forever()

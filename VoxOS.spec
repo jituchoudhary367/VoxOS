@@ -37,6 +37,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name='VoxOS',
+    icon='voxos/ui/assets/vox.ico',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -10,7 +10,7 @@ OutputBaseFilename=VoxOS-Setup-v2
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=lowest
-SetupIconFile=compiler:SetupClassicIcon.ico
+SetupIconFile=voxos\ui\assets\vox.ico
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 544 160" width="544" height="160">
+  <title>Vox</title>
+  <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D2774F"/><stop offset="1" stop-color="#AE4E2E"/></linearGradient><radialGradient id="dot" cx="0.4" cy="0.35" r="0.75"><stop offset="0" stop-color="#6A957A"/><stop offset="1" stop-color="#3F6B4F"/></radialGradient></defs>
+  <rect x="19.68" y="16.56" width="13.31" height="52.00" rx="6.66" fill="url(#bar)"/>
+  <rect x="37.57" y="41.52" width="13.31" height="52.00" rx="6.66" fill="url(#bar)"/>
+  <rect x="55.46" y="65.96" width="13.31" height="53.04" rx="6.66" fill="url(#bar)"/>
+  <rect x="73.34" y="88.84" width="13.31" height="57.20" rx="6.66" fill="url(#bar)"/>
+  <rect x="91.23" y="65.96" width="13.31" height="53.04" rx="6.66" fill="url(#bar)"/>
+  <rect x="109.12" y="41.52" width="13.31" height="52.00" rx="6.66" fill="url(#bar)"/>
+  <rect x="127.01" y="16.56" width="13.31" height="52.00" rx="6.66" fill="url(#bar)"/>
+  <circle cx="80.00" cy="54.62" r="12.90" fill="url(#dot)"/>
+  <text x="160.0" y="101.6" font-family="Georgia" font-size="86.4"
+        letter-spacing="-1.60" fill="#FBF8F4">Vox</text>
+  <text x="163.2" y="132.8" font-family="Segoe UI" font-size="16.0"
+        font-weight="600" letter-spacing="4.00" fill="#B9ADA3">YOUR VOICE. YOUR COMPUTER.</text>
+</svg>
