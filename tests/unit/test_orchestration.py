@@ -229,7 +229,7 @@ async def test_synthesize_falls_back_to_joined_answers():
     reply = await synthesize("x", results, llm)
 
     assert "It is 1 PM." in reply
-    assert "no such folder" in reply
+    assert "no such folder" in reply.lower()
 
 
 # ─── Graph ───────────────────────────────────────────────────────────────────

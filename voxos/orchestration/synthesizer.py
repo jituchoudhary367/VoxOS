@@ -58,14 +58,25 @@ def _fallback(results: list[WorkerResult]) -> str:
         if r.status == "done":
             parts.append(r.answer or f"Done: {r.goal}.")
         elif r.status == "failed":
-            parts.append(f"I couldn't do this: {r.goal} ({r.error or 'it failed'}).")
+            # "…: Open Amazon (Something broke (RuntimeError).)." read badly; the
+            # reason is its own sentence now.
+            reason = (r.error or "It failed").strip()
+            if reason[-1:] not in ".!?":
+                reason += "."
+            parts.append(f"I couldn't finish “{r.goal.rstrip('.')}”. {reason[0].upper()}{reason[1:]}")
     return " ".join(parts) or "I couldn't complete that request."
 
 
-def _question_text(questions: list[dict]) -> str:
-    """The questions as Vox says them: numbered when several, options spelled out."""
+def question_text(questions: list[dict]) -> str:
+    """The questions as Vox says them: numbered when several, options spelled out.
+
+    Public because the desktop UI strips exactly this tail off the reply bubble
+    and shows the questions as a card instead.
+    """
+    from voxos.core.conversation.pending import option_label
+
     def one(q: dict) -> str:
-        options = q.get("options") or []
+        options = [option_label(o) for o in q.get("options") or [] if option_label(o)]
         if len(options) >= 2:
             return f"{q['question']} ({', '.join(options[:-1])} or {options[-1]})"
         return q["question"]
@@ -77,6 +88,9 @@ def _question_text(questions: list[dict]) -> str:
     )
 
 
+_question_text = question_text  # older name
+
+
 async def synthesize(
     request: str, results: list[WorkerResult], llm: JsonAsker, language: str = "en"
 ) -> str:
@@ -86,7 +100,7 @@ async def synthesize(
     if questions:
         # Questions are asked verbatim (never paraphrased away by the model).
         summary = await _summarize(request, answered, llm, language) if answered else ""
-        return " ".join(part for part in (summary, _question_text(questions)) if part)
+        return " ".join(part for part in (summary, question_text(questions)) if part)
     return await _summarize(request, results, llm, language)
 
 

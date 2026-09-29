@@ -73,7 +73,9 @@ def looks_like_answer(reply: str, questions: list[dict[str, Any]]) -> bool:
     """
     text = reply.strip()
     lower = text.lower()
-    options = [str(o).lower() for q in questions for o in q.get("options") or []]
+    if resolve_choice(text, questions) != text:
+        return True  # "2", "the second one"
+    options = [option_label(o).lower() for q in questions for o in q.get("options") or []]
     if any(o and (o in lower or lower in o) for o in options):
         return True
     if _YES.match(text) or re.match(r"^\s*(?:no|nope|nah|don'?t|do not|cancel|stop|skip)\b", lower):
@@ -89,11 +91,55 @@ def user_said_yes(request: str) -> bool:
     return bool(match and _YES.match(match.group(1)))
 
 
+def option_label(option: Any) -> str:
+    """Options are plain strings, or {"label", "description"} dicts."""
+    if isinstance(option, dict):
+        return str(option.get("label") or "").strip()
+    return str(option).strip()
+
+
+_ORDINALS = {
+    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "pehla": 1, "pehle": 1, "pahla": 1, "doosra": 2, "dusra": 2, "doosre": 2, "dusre": 2,
+    "teesra": 3, "tisra": 3, "teesre": 3, "chautha": 4, "chauthe": 4,
+}
+_PICK = re.compile(
+    r"^\s*(?:the\s+)?(?:option|number|no\.?|choice)?\s*#?\s*(\d|[a-z]+)(?:st|nd|rd|th)?"
+    r"(?:\s+(?:one|option|wala|vala|waala))?\s*[.!]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def resolve_choice(answer: str, questions: list[dict[str, Any]]) -> str:
+    """Turn "2", "the second one", "option two" or "doosra" into the option it names.
+
+    Only for a single question with options; spoken answers are usually like
+    this, and the agents otherwise had to guess what "the second one" meant.
+    """
+    if len(questions) != 1:
+        return answer
+    options = [option_label(o) for o in questions[0].get("options") or [] if option_label(o)]
+    match = _PICK.match(answer or "")
+    if not options or not match:
+        return answer
+    token = match.group(1).lower()
+    if token == "last":
+        return options[-1]
+    n = int(token) if token.isdigit() else _ORDINALS.get(token)
+    return options[n - 1] if n and 1 <= n <= len(options) else answer
+
+
+def _asked(q: dict[str, Any]) -> str:
+    options = [option_label(o) for o in q.get("options") or [] if option_label(o)]
+    return f"{q['question']} (options: {', '.join(options)})" if options else q["question"]
+
+
 def as_request(item: PendingQuestions, answer: str) -> str:
     """The request the agents continue with: original, what was asked, the reply."""
     asked = " ".join(
-        f"{n}. {q['question']}" for n, q in enumerate(item.questions, 1)
-    ) if len(item.questions) > 1 else item.questions[0]["question"]
+        f"{n}. {_asked(q)}" for n, q in enumerate(item.questions, 1)
+    ) if len(item.questions) > 1 else _asked(item.questions[0])
     return (
         f"{item.request}\n"
         f"(Vox asked the user: {asked}\n"

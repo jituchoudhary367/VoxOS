@@ -359,3 +359,33 @@ def test_quota_errors_are_explained_plainly(error_text, expected):
 
     assert expected in message
     assert "Internal error" not in message
+
+
+# ── keys already cooling when a call starts ──────────────────────────────────
+# Regression: the pool raised a bare RuntimeError("Every API key in the pool is
+# rate limited") when every key was already resting on the first model before
+# this call had tried anything. Model fallback and the Ollama fallback only
+# catch RateLimitError, so the worker crashed: "Something broke on my side
+# (RuntimeError)".
+
+async def test_keys_already_cooling_fall_back_to_the_sibling_model():
+    clock = FakeClock()
+    a = FakeProvider("a", errors=[_rate_limit("60")])
+    b = FakeProvider("b", errors=[_rate_limit("60")])
+    pool = KeyPoolProvider([a, b], clock=clock, sleep=clock.sleep, fallback_models=["m", "m2"])
+
+    first = await pool.complete(MESSAGES, CONFIG)       # both keys throttled on m → m2 answers
+    assert first.model == "m2"
+    second = await pool.complete(MESSAGES, CONFIG)      # keys still resting on m: go straight to m2
+    assert second.model == "m2"
+
+
+async def test_exhausted_pool_raises_a_rate_limit_error_not_runtime_error():
+    clock = FakeClock()
+    a = FakeProvider("a", errors=[_rate_limit("600")])
+    pool = KeyPoolProvider([a], clock=clock, sleep=clock.sleep, max_wait_s=5)
+
+    with pytest.raises(RateLimitError):
+        await pool.complete(MESSAGES, CONFIG)
+    with pytest.raises(RateLimitError):                 # a fresh call, nothing tried yet
+        await pool.complete(MESSAGES, CONFIG)

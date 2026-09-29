@@ -177,9 +177,60 @@ async def test_database_history_adapter_creates_a_missing_parent_session() -> No
     assert calls == [
         ("get", session_id),
         ("create", {"id": session_id, "status": "active", "session_metadata": {}}),
+        "commit",
         ("append", session_id, "user", "hi"),
         "commit",
     ]
+
+
+@pytest.mark.asyncio
+async def test_database_history_adapter_survives_losing_the_session_insert_race() -> None:
+    """The task manager inserts the same session row concurrently; the turn must still be saved."""
+    from sqlalchemy.exc import IntegrityError
+
+    from voxos.core.conversation.history import DatabaseConversationHistory
+
+    calls: list[object] = []
+
+    class Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def commit(self):
+            calls.append("commit")
+
+        async def rollback(self):
+            calls.append("rollback")
+
+    class SessionRepository:
+        def __init__(self, _session):
+            pass
+
+        async def get(self, _session_id):
+            return None
+
+        async def create(self, _payload):
+            raise IntegrityError("INSERT INTO sessions", {}, Exception("sessions_pkey"))
+
+    class ConversationRepository:
+        def __init__(self, _session):
+            pass
+
+        async def append_turn(self, session_id, *, role, content):
+            calls.append(("append", role, content))
+
+    history = DatabaseConversationHistory(
+        session_factory=lambda: Session(),
+        repository_factory=ConversationRepository,
+        session_repository_factory=SessionRepository,
+    )
+
+    await history.append_turn(str(uuid4()), role="user", content="hi")
+
+    assert calls == ["rollback", ("append", "user", "hi"), "commit"]
 
 
 @pytest.mark.asyncio

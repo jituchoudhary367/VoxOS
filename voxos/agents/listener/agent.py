@@ -91,7 +91,9 @@ Example response:
 }
 
 Common intents:
-- get_current_time, get_system_info, get_resources
+- get_current_time
+- get_resources (live CPU, RAM, disk, BATTERY level/charging — "battery percentage", "how's my cpu")
+- get_system_info (OS version, hostname, uptime only — never for battery/CPU/RAM questions)
 - open_application, close_application, list_applications
 - search_web, browse_url
 - list_files, read_file, create_file, delete_file, move_file
@@ -150,6 +152,25 @@ def _search_target(text: str) -> tuple[str, str]:
     if match := _THE_WEB.match(text):
         return match.group(1).strip(), "bing"
     return text, "bing"
+
+
+_RESOURCE_WORD = re.compile(
+    r"\b(?:battery|charging|charger|plugged in|cpu|processor|ram|memory|disk|storage|"
+    r"system (?:resources|stats|status|metrics))\b"
+)
+_RESOURCE_ASK = re.compile(
+    r"\b(?:what|whats|how|hows|much|is|am|check|show|tell|level|percent|percentage|usage|"
+    r"used|status|left|remaining|doing|free|kitna|kitni|batao|hai)\b"
+)
+_RESOURCE_ACTION = re.compile(r"^(?:open|close|launch|start|delete|remove|clear|clean|free up|kill)\b")
+
+
+def _is_resource_question(text_clean: str) -> bool:
+    """'whats my battery level', 'battery percentage', 'hows my cpu doing', 'is it charging'."""
+    if not _RESOURCE_WORD.search(text_clean) or _RESOURCE_ACTION.search(text_clean):
+        return False
+    return bool(_RESOURCE_ASK.search(text_clean)) or len(text_clean.split()) <= 3
+
 
 
 class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
@@ -377,13 +398,10 @@ class ListenerAgent(BaseAgent[ListenerInput, ListenerOutput]):
                                   entities={}, requires_execution=True, confidence=1.0)
 
         # ── System Resources ──────────────────────────────────────────────────
-        SYS_RES_PATTERNS = [
-            r"(?:how much|check|show|what(?:'s| is)(?: my)?)\s+(?:ram|memory|cpu|processor|disk|storage|battery)",
-            r"(?:cpu|ram|memory|disk|battery|network) usage",
-            r"system (?:resources|stats|status|metrics)",
-            r"ram (?:kitna|check|batao)", r"cpu (?:kitna|check|batao)",
-        ]
-        if any(re.search(p, text_clean) for p in SYS_RES_PATTERNS):
+        # Punctuation is already stripped here, so "what's" arrives as "whats".
+        # A question about battery/CPU/RAM/disk goes straight to get_resources;
+        # left to the LLM, these were being answered with OS info and uptime.
+        if _is_resource_question(text_clean):
             return ListenerOutput(intent="get_resources", language="en",
                                   entities={}, requires_execution=True, confidence=1.0)
 

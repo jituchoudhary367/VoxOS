@@ -73,6 +73,17 @@ def retry_after_seconds(error: Exception, default: float = DEFAULT_COOLDOWN_S) -
     return default
 
 
+def _pool_error(status: int, message: str, retry_after: float = 0.0) -> RateLimitError | AuthenticationError:
+    """The error a single key would have raised, for a pool that tried none."""
+    import httpx
+
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    if status == 429:
+        headers = {"retry-after": str(max(1, round(retry_after)))}
+        return RateLimitError(message, response=httpx.Response(429, headers=headers, request=request), body=None)
+    return AuthenticationError(message, response=httpx.Response(401, request=request), body=None)
+
+
 class KeyPoolProvider(LLMProvider):
     """An LLMProvider over N same-endpoint providers, one per API key."""
 
@@ -135,10 +146,16 @@ class KeyPoolProvider(LLMProvider):
                 return slot
             wake = self._wake_time(model)
             if wake is None:
-                raise last_error or RuntimeError("Every API key in the pool was rejected")
+                raise last_error or _pool_error(401, "Every API key in the pool was rejected")
             if wake > deadline:
                 metrics.increment("llm.key_pool.exhausted", model=model)
-                raise last_error or RuntimeError("Every API key in the pool is rate limited")
+                # Raised as a real 429 even when this call tried nothing (every
+                # key was already resting): model fallback, the Ollama fallback
+                # and the user's "busy, try again in…" message all key off it.
+                raise last_error or _pool_error(
+                    429, f"Every API key in the pool is rate limited for {model}",
+                    retry_after=wake - self._clock(),
+                )
             await self._sleep(max(wake - self._clock(), 0.0))
 
     def _on_rate_limit(self, slot: _Slot, model: str, error: RateLimitError) -> None:

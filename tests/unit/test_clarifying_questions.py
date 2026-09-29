@@ -425,3 +425,50 @@ def test_finish_without_an_answer_uses_its_conclusion():
         == "The cheapest HP laptop is the HP 15s at ₹32,990."
     assert answer_of({"action": "finish", "message": "Done."}) == "Done."
     assert answer_of({"action": "finish", "thought": "done"}) == ""
+
+
+# ── spoken / numbered answers ────────────────────────────────────────────────
+
+_BRANDS = [{"question": "Which brand?", "options": ["HP", "Dell", "Lenovo"]}]
+
+
+@pytest.mark.parametrize("answer,expected", [
+    ("2", "Dell"), ("option 3", "Lenovo"), ("the second one", "Dell"), ("number one", "HP"),
+    ("first", "HP"), ("the last one", "Lenovo"), ("doosra wala", "Dell"), ("3rd", "Lenovo"),
+])
+def test_numbered_and_ordinal_answers_name_the_option(answer, expected):
+    from voxos.core.conversation import pending
+
+    assert pending.resolve_choice(answer, _BRANDS) == expected
+    assert pending.looks_like_answer(answer, _BRANDS)
+
+
+@pytest.mark.parametrize("answer", ["9", "HP please", "show me the second laptop on amazon"])
+def test_other_answers_pass_through_unchanged(answer):
+    from voxos.core.conversation import pending
+
+    assert pending.resolve_choice(answer, _BRANDS) == answer
+
+
+def test_several_questions_are_not_guessed_from_a_number():
+    from voxos.core.conversation import pending
+
+    two = _BRANDS + [{"question": "Budget?", "options": ["Low", "High"]}]
+    assert pending.resolve_choice("2", two) == "2"
+
+
+def test_agents_see_the_options_they_offered():
+    from voxos.core.conversation import pending
+
+    item = pending.PendingQuestions(request="buy a laptop", questions=_BRANDS)
+    text = pending.as_request(item, "Dell")
+    assert "options: HP, Dell, Lenovo" in text and 'answered: "Dell"' in text
+
+
+def test_option_dicts_with_descriptions_are_understood():
+    from voxos.core.conversation import pending
+    from voxos.orchestration.synthesizer import question_text
+
+    qs = [{"question": "Which plan?", "options": [{"label": "Basic", "description": "₹199"}, {"label": "Pro"}]}]
+    assert pending.resolve_choice("2", qs) == "Pro"
+    assert question_text(qs) == "Which plan? (Basic or Pro)"

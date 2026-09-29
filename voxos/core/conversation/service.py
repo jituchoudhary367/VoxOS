@@ -108,7 +108,8 @@ class ConversationService:
                 # Vox asked something last turn; this message is the answer
                 # ("yes", "HP", "the second one"), not a chat line.
                 pending.clear(session_id)
-                request = pending.as_request(waiting, clean_text)
+                answer = pending.resolve_choice(clean_text, waiting.questions)
+                request = pending.as_request(waiting, answer)
                 understood = ListenerOutput(
                     intent="answer_to_question", requires_execution=True, confidence=1.0,
                     language="en", raw_text=request,
@@ -272,7 +273,9 @@ class ConversationService:
         sentences: list[str] = []
         action: str | None = None
         for data in ConversationService._result_data_steps(task.result):
-            rendered = ConversationService._sentence_for(data, intent)
+            rendered = ConversationService._sentence_for(
+                data, intent, str(getattr(task, "user_request", "") or "")
+            )
             if rendered is None:
                 continue
             text, step_action = rendered
@@ -285,8 +288,50 @@ class ConversationService:
         return AssistantReply(text=" ".join(sentences), kind="success", action=action)
 
     @staticmethod
+    def _resources_sentence(data: dict[str, Any], request: str = "") -> str | None:
+        """Answer what was asked: battery for a battery question, CPU for a CPU one.
+
+        Only when the request names none of them (e.g. "system stats") are all
+        of them read out.
+        """
+        asked = request.lower()
+        wants = {
+            "battery": bool(re.search(r"batter|charg|plugged", asked)),
+            "cpu": bool(re.search(r"\bcpu\b|processor", asked)),
+            "memory": bool(re.search(r"\bram\b|memory", asked)),
+            "disk": bool(re.search(r"disk|storage|space", asked)),
+        }
+        if not any(wants.values()):
+            wants = dict.fromkeys(wants, True)
+
+        parts: list[str] = []
+        battery = data.get("battery") or {}
+        if wants["battery"]:
+            if battery.get("percent") is None:
+                parts.append("I can't read a battery on this computer")
+            else:
+                plugged = battery.get("power_plugged")
+                state = " and charging" if plugged else " on battery power" if plugged is False else ""
+                parts.append(f"Battery is at {round(battery['percent'])}%{state}")
+        cpu = data.get("cpu") or {}
+        if wants["cpu"] and cpu.get("percent") is not None:
+            parts.append(f"CPU is at {cpu['percent']}%")
+        memory = data.get("memory") or {}
+        if wants["memory"] and memory.get("percent") is not None:
+            used, total = memory.get("used_gb"), memory.get("total_gb")
+            detail = f" ({used} of {total} GB used)" if used and total else ""
+            parts.append(f"memory at {memory['percent']}%{detail}")
+        disk = data.get("disk") or {}
+        if wants["disk"] and disk.get("percent") is not None:
+            parts.append(f"disk at {disk['percent']}%")
+        if not parts:
+            return None
+        sentence = ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1]
+        return sentence[0].upper() + sentence[1:] + "."
+
+    @staticmethod
     def _sentence_for(
-        data: dict[str, Any], intent: str | None = None
+        data: dict[str, Any], intent: str | None = None, request: str = ""
     ) -> tuple[str, str | None] | None:
         """Turn one tool's result payload into a sentence a person can read."""
         status = str(data.get("status", "")).strip()
@@ -325,19 +370,7 @@ class ConversationService:
             return sentence + ".", None
 
         if isinstance(data.get("cpu"), dict) or isinstance(data.get("memory"), dict):
-            cpu = data.get("cpu") or {}
-            memory = data.get("memory") or {}
-            parts = []
-            if cpu.get("percent") is not None:
-                parts.append(f"CPU is at {cpu['percent']}%")
-            if memory.get("percent") is not None:
-                used, total = memory.get("used_gb"), memory.get("total_gb")
-                detail = f" ({used} of {total} GB used)" if used and total else ""
-                parts.append(f"memory at {memory['percent']}%{detail}")
-            disk = data.get("disk") or {}
-            if disk.get("percent") is not None:
-                parts.append(f"disk at {disk['percent']}%")
-            return " and ".join(parts) + "." if parts else None, None
+            return ConversationService._resources_sentence(data, request), None
 
         if "content" in data:
             body = ConversationService._shorten(str(data["content"]).strip())

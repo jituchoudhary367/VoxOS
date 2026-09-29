@@ -27,13 +27,14 @@ KNOWN_INTENTS: dict[str, IntentDefinition] = {
     ),
     "get_system_info": IntentDefinition(
         name="get_system_info",
-        description="Get system hardware/OS information",
-        example_phrases=["system info", "what's my RAM", "CPU usage"],
+        description="Get OS name/version, hostname and uptime (not live usage)",
+        example_phrases=["system info", "which windows version", "how long has my pc been on"],
     ),
     "get_resources": IntentDefinition(
         name="get_resources",
-        description="Get CPU, memory, disk usage",
-        example_phrases=["check CPU", "memory usage", "disk space"],
+        description="Get live CPU, memory, disk usage and battery level/charging",
+        example_phrases=["check CPU", "memory usage", "disk space", "battery percentage",
+                         "is my laptop charging"],
     ),
     "open_application": IntentDefinition(
         name="open_application",

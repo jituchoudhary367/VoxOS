@@ -371,7 +371,11 @@ class ExecutorAgent(BaseAgent[ExecutorInput, ExecutorOutput]):
             event_type=event_type,
             payload={
                 "tool": step.tool,
+                # step_id pairs this with TOOL_STARTED (the live step view needs it)
+                "step_id": step.id,
                 "status": tool_result.status,
+                "success": tool_result.success,
+                "error": None if tool_result.success else (tool_result.error or "")[:200],
                 "duration_ms": tool_result.duration_ms,
             },
             task_id=task.id,

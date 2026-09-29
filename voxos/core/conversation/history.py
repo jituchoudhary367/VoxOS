@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
+
 from voxos.database.engine import get_session_factory
 from voxos.database.repositories.conversation_repo import ConversationHistoryRepository
 from voxos.database.repositories.session_repo import SessionRepository
@@ -29,9 +31,15 @@ class DatabaseConversationHistory:
             session_uuid = uuid.UUID(session_id)
             session_repository = self._session_repository_factory(session)
             if await session_repository.get(session_uuid) is None:
-                await session_repository.create(
-                    {"id": session_uuid, "status": "active", "session_metadata": {}}
-                )
+                # The task manager inserts this row too, concurrently; losing
+                # that race is fine, the row exists either way.
+                try:
+                    await session_repository.create(
+                        {"id": session_uuid, "status": "active", "session_metadata": {}}
+                    )
+                    await session.commit()
+                except IntegrityError:
+                    await session.rollback()
             repository = self._repository_factory(session)
             await repository.append_turn(session_uuid, role=role, content=content)
             await session.commit()
