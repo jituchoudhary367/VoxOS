@@ -19,7 +19,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from voxos.config import get_settings
 from voxos.llm.base import LLMConfig, LLMMessage
 from voxos.observability.logger import get_logger
 from voxos.tools.base import BaseTool, RiskLevel, ToolMetadata, ToolResult, VerificationType
@@ -97,9 +96,10 @@ class VisionLookTool(BaseTool):
             {"type": "text", "text": f"{args.question}\nAnswer briefly and only from what is visible."},
             {"type": "image_url", "image_url": {"url": image_url}},
         ])
-        config = LLMConfig(model=get_settings().llm.vision_model, temperature=0.2, max_tokens=700)
+        router = get_llm_router()
+        config = LLMConfig(model=router.vision_model, temperature=0.2, max_tokens=700)
         try:
-            response = await get_llm_router().provider.complete([message], config)
+            response = await router.provider.complete([message], config)
         except Exception as e:
             log.warning("vision_look_failed", error=str(e))
             return ToolResult.fail(f"The vision model failed: {e}", "VISION_ERROR")

@@ -8,6 +8,7 @@ Works with: OpenAI, Groq, Ollama (openai-compat mode), Together AI,
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import Any, AsyncIterator
 
 from openai import AsyncOpenAI, APIConnectionError, RateLimitError
@@ -23,6 +24,8 @@ from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
 
 log = get_logger(__name__)
+
+_THINK = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
 metrics = get_metrics()
 
 
@@ -141,7 +144,9 @@ class OpenAICompatibleProvider(LLMProvider):
                 })
 
         result = LLMResponse(
-            content=message.content or "",
+            # Local reasoning models (qwen3, deepseek-r1) can put their thinking
+            # inline; agents parse JSON from content, so it must not be there.
+            content=_THINK.sub("", message.content or "").strip(),
             model=response.model,
             usage={
                 "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,

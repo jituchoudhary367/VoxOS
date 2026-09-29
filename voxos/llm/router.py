@@ -104,17 +104,29 @@ class LLMRouter:
     uses the stronger model.
     """
 
-    def __init__(self, provider: LLMProvider) -> None:
+    def __init__(
+        self,
+        provider: LLMProvider,
+        *,
+        fast_model: str | None = None,
+        strong_model: str | None = None,
+        vision_model: str | None = None,
+    ) -> None:
         self._provider = provider
         settings = get_settings().llm
-        self._fast_model = settings.fast_model
-        self._strong_model = settings.strong_model
+        self._fast_model = fast_model or settings.fast_model
+        self._strong_model = strong_model or settings.strong_model
+        self._vision_model = vision_model or settings.vision_model
         self._temperature = settings.temperature
         self._max_tokens = settings.max_tokens
 
     @property
     def provider(self) -> LLMProvider:
         return self._provider
+
+    @property
+    def vision_model(self) -> str:
+        return self._vision_model
 
     def config_for(
         self,
@@ -170,24 +182,50 @@ def build_primary_provider(settings: Any) -> LLMProvider:
     )
 
 
-@lru_cache(maxsize=1)
-def get_llm_router() -> LLMRouter:
-    """Return cached LLM router singleton with fallback support."""
-    settings = get_settings().llm
-    
-    primary = build_primary_provider(settings)
-    
-    ollama = OpenAICompatibleProvider(
-        base_url="http://localhost:11434/v1",
+def build_local_provider(settings: Any) -> OpenAICompatibleProvider:
+    """Ollama through its OpenAI-compatible endpoint."""
+    return OpenAICompatibleProvider(
+        base_url=settings.ollama_base_url.rstrip("/") + "/v1",
         api_key="ollama",  # Any string works for local Ollama
         provider_name="ollama",
     )
 
-    def ollama_mapper(model: str) -> str:
-        # User requested ollama llama3:8b as local fallback for everything
-        return "llama3:8b"
-        
-    provider = FallbackProvider(primary, ollama, ollama_mapper)
-    
-    log.info("llm_router_initialized", provider=f"{primary.name}->ollama", fast=settings.fast_model, strong=settings.strong_model)
-    return LLMRouter(provider=provider)
+
+def local_model_for(settings: Any, model: str) -> str:
+    """The local model that stands in for a cloud one, job for job."""
+    return {
+        settings.fast_model: settings.ollama_fast_model,
+        settings.strong_model: settings.ollama_strong_model,
+        settings.vision_model: settings.ollama_vision_model,
+    }.get(model, settings.ollama_fast_model)
+
+
+def build_router(settings: Any) -> LLMRouter:
+    """Build the router for LLM_MODE: cloud, local or hybrid."""
+    if settings.mode == "local":
+        router = LLMRouter(
+            provider=build_local_provider(settings),
+            fast_model=settings.ollama_fast_model,
+            strong_model=settings.ollama_strong_model,
+            vision_model=settings.ollama_vision_model,
+        )
+        name = "ollama"
+    elif settings.mode == "cloud":
+        primary = build_primary_provider(settings)
+        router = LLMRouter(provider=primary)
+        name = primary.name
+    else:
+        primary = build_primary_provider(settings)
+        router = LLMRouter(provider=FallbackProvider(
+            primary, build_local_provider(settings), lambda m: local_model_for(settings, m)
+        ))
+        name = f"{primary.name}->ollama"
+    log.info("llm_router_initialized", mode=settings.mode, provider=name,
+             fast=router._fast_model, strong=router._strong_model, vision=router.vision_model)
+    return router
+
+
+@lru_cache(maxsize=1)
+def get_llm_router() -> LLMRouter:
+    """Return cached LLM router singleton for the configured mode."""
+    return build_router(get_settings().llm)

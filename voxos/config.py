@@ -120,6 +120,36 @@ class LLMSettings(BaseSettings):
     max_tokens: int = 4096
     temperature: float = 0.1
 
+    # Where models run. cloud = Groq only; local = Ollama only (private,
+    # offline); hybrid = Groq first, Ollama when Groq is down or rate-limited.
+    mode: Literal["cloud", "local", "hybrid"] = "hybrid"
+    ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
+    # One all-rounder local model (text, vision, tools, code), used in local
+    # mode and as the hybrid fallback. The per-job overrides are optional;
+    # empty means "use OLLAMA_MODEL".
+    ollama_model: str = Field(default="qwen3.5:4b", alias="OLLAMA_MODEL")
+    ollama_fast_override: str = Field(default="", alias="OLLAMA_FAST_MODEL")
+    ollama_strong_override: str = Field(default="", alias="OLLAMA_STRONG_MODEL")
+    ollama_vision_override: str = Field(default="", alias="OLLAMA_VISION_MODEL")
+
+    @property
+    def ollama_fast_model(self) -> str:
+        return self.ollama_fast_override.strip() or self.ollama_model
+
+    @property
+    def ollama_strong_model(self) -> str:
+        return self.ollama_strong_override.strip() or self.ollama_model
+
+    @property
+    def ollama_vision_model(self) -> str:
+        return self.ollama_vision_override.strip() or self.ollama_model
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def normalise_mode(cls, v: str) -> str:
+        v = str(v or "hybrid").strip().lower()
+        return v if v in ("cloud", "local", "hybrid") else "hybrid"
+
     @field_validator("groq_api_key", mode="before")
     @classmethod
     def check_api_key(cls, v: str) -> str:
