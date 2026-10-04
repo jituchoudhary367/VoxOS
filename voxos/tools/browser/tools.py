@@ -86,15 +86,55 @@ _MAIN_LINKS_JS = """() => {
   const main = document.querySelector('main, [role="main"], #search, #content, #contents, article') || document.body;
   const seen = new Set();
   const links = [];
+  // Sponsored ad redirects (Amazon's aax-*/sspa) fail to open and cost steps.
+  const isAd = (a) => /\\/\\/aax-|\\/sspa\\/|\\/gp\\/slredirect|doubleclick|googleadservices/.test(a.href)
+      || /^sponsored\\b/i.test((a.getAttribute('aria-label') || '').trim())
+      || !!a.closest('.AdHolder, [data-component-type="sp-sponsored-result"], .s-sponsored-label-info-icon');
   for (const a of main.querySelectorAll('a[href]')) {
     const text = (a.innerText || a.getAttribute('aria-label') || '').trim().replace(/\\s+/g, ' ');
-    if (text.length < 12 || seen.has(a.href) || !a.href.startsWith('http')) continue;
+    if (text.length < 12 || seen.has(a.href) || !a.href.startsWith('http') || isAd(a)) continue;
     seen.add(a.href);
     links.push({text: text.slice(0, 70), url: a.href.split('&ref=')[0].split('/ref=')[0].slice(0, 120)});
     if (links.length === 12) break;
   }
   return links;
 }"""
+
+
+# Product cards on shopping result pages, read directly: the page text of an
+# Amazon search is ~10,000 characters of menus, filters and sponsored blocks,
+# and agents re-read it until every Groq key ran out of per-minute tokens.
+_PRODUCTS_JS = """() => {
+  const host = location.hostname;
+  let cards = [];
+  if (host.includes('amazon.')) {
+    cards = [...document.querySelectorAll('div[data-component-type="s-search-result"]')]
+      .filter(c => !c.classList.contains('AdHolder') && !/\\bSponsored\\b/.test(c.innerText.slice(0, 200)));
+  } else if (host.includes('flipkart.')) {
+    cards = [...document.querySelectorAll('div[data-id]')];
+  } else {
+    return [];
+  }
+  const out = [];
+  const clean = s => (s || '').replace(/\\s+/g, ' ').trim();
+  for (const c of cards) {
+    const titleEl = c.querySelector('h2, a.wjcEIp, div.KzDlHZ, a.WKTcLC, a.s1Q9rs, div._4rR01T');
+    const title = clean(titleEl && (titleEl.innerText || titleEl.getAttribute('title')));
+    if (!title) continue;
+    const priceEl = c.querySelector('.a-price .a-offscreen, div.Nx9bqj, div._30jeq3');
+    const ratingEl = c.querySelector('.a-icon-alt, div.XQDdHH, div._3LWZlK');
+    const linkEl = c.querySelector('h2 a, a.a-link-normal[href*="/dp/"], a[href*="/p/"]') || titleEl.closest('a');
+    let url = linkEl ? linkEl.href : '';
+    url = url.split('/ref=')[0].split('?')[0];
+    out.push({title: title.slice(0, 110), price: clean(priceEl && priceEl.innerText),
+              rating: clean(ratingEl && ratingEl.innerText).slice(0, 20), url: url.slice(0, 140)});
+    if (out.length === 10) break;
+  }
+  return out;
+}"""
+
+# With product cards in hand the raw page text is mostly noise; keep a little.
+TEXT_WITH_PRODUCTS = 600
 
 
 def label_tab(key: str, label: str) -> None:
@@ -588,6 +628,19 @@ class BrowserExtractTool(BaseTool):
                 links = await page.evaluate(_MAIN_LINKS_JS)
             except Exception:  # noqa: BLE001 — text alone is still useful
                 links = []
+            products: list[dict[str, Any]] = []
+            if selector == "body":
+                try:
+                    products = await page.evaluate(_PRODUCTS_JS)
+                except Exception:  # noqa: BLE001 — not a shop page, or its layout changed
+                    products = []
+            if products:
+                # The cards say what matters; links and the long text would
+                # only repeat them at ~10x the tokens.
+                return ToolResult.ok(data={
+                    "url": page.url, "products": products,
+                    "text": text[:min(args.max_chars, TEXT_WITH_PRODUCTS)],
+                })
             return ToolResult.ok(data={"url": page.url, "links": links, "text": text[:args.max_chars]})
         except Exception as e:
             log.exception("browser_extract_error", error=str(e))

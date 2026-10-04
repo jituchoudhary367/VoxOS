@@ -38,13 +38,14 @@ def _build_conversation_service():
     from voxos.agents.listener.agent import ListenerAgent
     from voxos.agents.overseer.agent import OverseerAgent
     from voxos.agents.strategist.agent import StrategistAgent
-    from voxos.core.conversation import ConversationService, DatabaseConversationHistory
+    from voxos.core.conversation import ConversationService
     from voxos.core.permissions import PermissionManager
+    from voxos.core.sessions import default_history
     from voxos.core.task_manager.manager import get_task_manager
 
     return ConversationService(
         task_manager=get_task_manager(),
-        history=DatabaseConversationHistory(),
+        history=default_history(),
         listener=ListenerAgent(),
         strategist=StrategistAgent(),
         executor=ExecutorAgent(),

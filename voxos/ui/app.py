@@ -179,6 +179,8 @@ class VoxApp(QObject):
             self.dashboard_window.restart_requested.connect(self.restart)
             self.dashboard_window.routine_run_requested.connect(self.run_routine)
             self.dashboard_window.voice_stop_requested.connect(self.stop_listening)
+            self.dashboard_window.new_chat_requested.connect(self.new_chat)
+            self.dashboard_window.session_selected.connect(self.switch_session)
         return self.dashboard_window
 
     def show_dashboard(self):
@@ -373,6 +375,27 @@ class VoxApp(QObject):
         if self._loop:
             self._loop.create_task(self._run_chat_task(text))
 
+    # ─── Conversations ────────────────────────────────────────────────────
+
+    def new_chat(self):
+        from voxos.core.sessions import get_sessions
+        self._use_session(get_sessions().new())
+
+    def switch_session(self, session_id: str):
+        from voxos.core.sessions import get_sessions
+        self._use_session(get_sessions().switch(session_id))
+
+    def _use_session(self, session_id: str):
+        """Point chat, voice and the window at another conversation."""
+        if session_id == self.session_id:
+            return
+        if self.pipeline_running:
+            self.stop_listening()  # the next voice session starts in the new conversation
+        self.session_id = session_id
+        log.info("session_switched", session_id=session_id)
+        if self.dashboard_window:
+            self.dashboard_window.load_session(session_id)
+
     # ─── Routines ─────────────────────────────────────────────────────────
 
     def _check_routines(self):
@@ -404,7 +427,8 @@ class VoxApp(QObject):
             from voxos.agents.strategist.agent import StrategistAgent
             from voxos.agents.executor.agent import ExecutorAgent
             from voxos.agents.overseer.agent import OverseerAgent
-            from voxos.core.conversation import ConversationService, DatabaseConversationHistory
+            from voxos.core.conversation import ConversationService
+            from voxos.core.sessions import default_history
             from voxos.core.task_manager.manager import TaskManager
             from voxos.core.permissions import PermissionManager
             
@@ -416,7 +440,7 @@ class VoxApp(QObject):
             permissions = PermissionManager()
             service = ConversationService(
                 task_manager=manager,
-                history=DatabaseConversationHistory(),
+                history=default_history(),
                 listener=listener,
                 strategist=strategist,
                 executor=executor,

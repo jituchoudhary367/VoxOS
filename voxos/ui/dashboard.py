@@ -59,6 +59,21 @@ def message_role(text: str) -> tuple[str, str]:
     return "assistant", text.strip()
 
 
+def _ago(stamp: str) -> str:
+    try:
+        then = datetime.fromisoformat(stamp)
+    except ValueError:
+        return ""
+    seconds = (datetime.now(then.tzinfo) - then).total_seconds()
+    if seconds < 90:
+        return "just now"
+    if seconds < 3600:
+        return f"{int(seconds // 60)} min ago"
+    if seconds < 86400:
+        return f"{int(seconds // 3600)} h ago"
+    return then.astimezone().strftime("%d %b")
+
+
 def _greeting(name: str | None) -> str:
     hour = datetime.now().hour
     part = "morning" if hour < 12 else "afternoon" if hour < 17 else "evening"
@@ -89,6 +104,9 @@ def _open_png(png: bytes) -> None:
 class ChatPage(QWidget):
     send = Signal(str)
     look = Signal()          # "What's on my screen?"
+    new_chat = Signal()
+    open_session = Signal(str)
+    delete_session = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -98,10 +116,14 @@ class ChatPage(QWidget):
         col.setSpacing(18)
 
         header = PageHeader("Chat", "Type what you need. Vox works on your computer and answers here.")
-        clear = button("Clear", "ghost", "Clear this conversation from the window")
-        clear.clicked.connect(self.clear)
-        header.actions.addWidget(clear)
+        self.history_btn = button("History", "ghost", "Your earlier conversations")
+        self.history_btn.clicked.connect(self._show_history)
+        new = button("+  New chat", None, "Start a fresh conversation (this one is kept in History)")
+        new.clicked.connect(self.new_chat.emit)
+        header.actions.addWidget(self.history_btn)
+        header.actions.addWidget(new)
         col.addWidget(header)
+        self.session_id: str | None = None
 
         # messages
         self.scroll = QScrollArea()
@@ -284,6 +306,58 @@ class ChatPage(QWidget):
         self.logo.replay_intro()
         fade_in(self.empty, 260, 10)
 
+    # ── conversations ────────────────────────────────────────────────────────
+
+    def _show_history(self) -> None:
+        from PySide6.QtGui import QAction
+        from PySide6.QtWidgets import QMenu
+
+        from voxos.core.sessions import get_sessions
+
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            f"QMenu {{ background: {PALETTE['surface']}; border: 1px solid {PALETTE['border']}; border-radius: 10px;"
+            " padding: 6px; }"
+            f"QMenu::item {{ padding: 8px 16px; border-radius: 6px; color: {PALETTE['text']}; }}"
+            f"QMenu::item:selected {{ background: {PALETTE['terracotta_soft']}; }}"
+            f"QMenu::item:disabled {{ color: {PALETTE['text_faint']}; }}"
+            f"QMenu::separator {{ height: 1px; background: {PALETTE['border']}; margin: 4px 8px; }}"
+        )
+        sessions = get_sessions().recent(25)
+        if not sessions:
+            menu.addAction("No earlier conversations yet").setEnabled(False)
+        for info in sessions:
+            when = _ago(info.updated)
+            action = QAction(f"{info.title}    ·  {when}", menu)
+            action.setCheckable(True)
+            action.setChecked(info.id == self.session_id)
+            action.triggered.connect(lambda _=False, sid=info.id: self.open_session.emit(sid))
+            menu.addAction(action)
+        if self.session_id and any(i.id == self.session_id for i in sessions):
+            menu.addSeparator()
+            delete = menu.addAction("Delete this conversation")
+            delete.triggered.connect(lambda: self.delete_session.emit(self.session_id or ""))
+        menu.exec(self.history_btn.mapToGlobal(self.history_btn.rect().bottomLeft()))
+
+    def load_turns(self, turns) -> None:
+        """Show a saved conversation (no entrance animation for old messages)."""
+        for i in reversed(range(self.feed.count())):
+            w = self.feed.itemAt(i).widget()
+            if w is not None and w is not self.empty:
+                w.setParent(None)
+                w.deleteLater()
+        self.active_question = None
+        if not turns:
+            self.empty.show()
+            self.aurora.set_running(True)
+            return
+        self.empty.hide()
+        self.aurora.set_running(False)
+        for t in turns:
+            if t.role in ("user", "assistant") and t.content:
+                self.feed.insertWidget(self.feed.count() - 1, ChatBubble(t.content, t.role))
+        self._stick = True
+
     def _follow(self, _min: int, maximum: int) -> None:
         if not self._stick:
             return
@@ -389,6 +463,8 @@ class InteractionDashboard(QWidget):
     restart_requested = Signal()
     routine_run_requested = Signal(object)   # Routine
     voice_stop_requested = Signal()
+    new_chat_requested = Signal()
+    session_selected = Signal(str)
 
     def __init__(self, env_path: str = ".env", session_id: str | None = None):
         super().__init__()
@@ -444,6 +520,9 @@ class InteractionDashboard(QWidget):
         side.addWidget(self.nav)
         side.addStretch(1)
 
+        self.user_chip = self._user_chip()
+        side.addWidget(self.user_chip)
+        side.addSpacing(10)
         self.side_status = StatusPill()
         side.addWidget(self.side_status)
         side.addSpacing(10)
@@ -490,6 +569,9 @@ class InteractionDashboard(QWidget):
         self.routines_page.notify.connect(self.toast.show_message)
         self.routines_page.run_requested.connect(self.routine_run_requested.emit)
         self.chat_page.send.connect(self._typed)
+        self.chat_page.new_chat.connect(self.new_chat_requested.emit)
+        self.chat_page.open_session.connect(self.session_selected.emit)
+        self.chat_page.delete_session.connect(self._delete_session)
         self.chat_page.look.connect(self._look_at_screen)
 
         # live agent steps, approvals and the voice pill
@@ -510,9 +592,82 @@ class InteractionDashboard(QWidget):
 
         self.nav.select(0, animate=False)
         self.chat_page.refresh_greeting()
+        if session_id:
+            self.load_session(session_id, announce=False)
 
         # Backward-compatible attribute: older code and tests poke this.
         self.status_label = self.side_status.text
+
+    # ── who and which conversation ───────────────────────────────────────────
+
+    def _user_chip(self) -> QFrame:
+        chip = QFrame()
+        chip.setObjectName("userchip")
+        chip.setCursor(Qt.CursorShape.PointingHandCursor)
+        chip.setToolTip("Your profile")
+        chip.setStyleSheet(
+            f"QFrame#userchip {{ background: {PALETTE['surface']}; border: 1px solid {PALETTE['border']};"
+            " border-radius: 12px; }"
+            f"QFrame#userchip:hover {{ border-color: {PALETTE['terracotta']}; }} QLabel {{ background: transparent; }}"
+        )
+        row = QHBoxLayout(chip)
+        row.setContentsMargins(10, 8, 12, 8)
+        row.setSpacing(10)
+        self.user_avatar = QLabel("?")
+        self.user_avatar.setFixedSize(30, 30)
+        self.user_avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.user_avatar.setStyleSheet(
+            f"background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {PALETTE['terracotta']},"
+            f" stop:1 {PALETTE['green']}); color: white; border-radius: 15px;"
+            f"font-family: '{Fonts.display}'; font-size: 15px;"
+        )
+        col = QVBoxLayout()
+        col.setSpacing(0)
+        self.user_name = QLabel("You")
+        self.user_name.setStyleSheet(f"font-weight: 600; font-size: 13px; color: {PALETTE['text']};")
+        self.user_note = QLabel("Signed in on this PC")
+        self.user_note.setStyleSheet(f"font-size: 11px; color: {PALETTE['text_muted']};")
+        col.addWidget(self.user_name)
+        col.addWidget(self.user_note)
+        row.addWidget(self.user_avatar)
+        row.addLayout(col, 1)
+        chip.mousePressEvent = lambda _e: self.show_page("profile")  # type: ignore[method-assign]
+        self.refresh_user()
+        return chip
+
+    def refresh_user(self) -> None:
+        try:
+            from voxos.core.profile.store import get_profile
+            name = get_profile().name
+        except Exception:  # noqa: BLE001
+            name = None
+        self.user_name.setText(name or "You")
+        self.user_avatar.setText((name or "?")[:1].upper())
+
+    def load_session(self, session_id: str, announce: bool = True) -> None:
+        """Show another conversation (or the one we are continuing at start-up)."""
+        from voxos.core.sessions import get_sessions
+
+        self.finish_request(None)
+        self._retire_questions(None)
+        self.session_id = session_id
+        self.chat_page.session_id = session_id
+        store = get_sessions()
+        self.chat_page.load_turns(store.turns(session_id, limit=80))
+        info = store.sessions.get(session_id)
+        if announce:
+            self.show_page("chat")
+            self.toast.show_message(
+                f"Continuing “{info.title}”" if info and info.turns else "New conversation", "green", 2200)
+
+    def _delete_session(self, session_id: str) -> None:
+        from voxos.core.sessions import get_sessions
+
+        if not session_id:
+            return
+        get_sessions().delete(session_id)
+        self.new_chat_requested.emit()
+        self.toast.show_message("Conversation deleted.", "green")
 
     # ── navigation ───────────────────────────────────────────────────────────
 
@@ -521,6 +676,8 @@ class InteractionDashboard(QWidget):
         page = PAGES[index]
         if page == "profile":
             self.profile_page.refresh()
+        elif page == "chat":
+            self.refresh_user()
         elif page == "routines":
             self.routines_page.refresh()
         elif page == "chat":

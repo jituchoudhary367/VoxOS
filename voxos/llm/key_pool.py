@@ -13,6 +13,10 @@ helps if a throttled key is skipped rather than waited on:
 - when a model is exhausted on every key, the call tries the other models
   of its family (`fallback_models`) on the same keys;
 - a rejected key (401) is disabled for the rest of the process;
+- with per-key limits set, each key keeps a one-minute window of what it
+  sent (see rate_limiter.py): a call only goes to a key with room for its
+  estimated size, and otherwise waits for the earliest room instead of
+  collecting 429s;
 - only when nothing is usable does the call wait, and only up to
   `max_wait_s`; past that the RateLimitError propagates.
 """
@@ -29,6 +33,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable
 from openai import AuthenticationError, RateLimitError
 
 from voxos.llm.base import LLMConfig, LLMMessage, LLMProvider, LLMResponse
+from voxos.llm.rate_limiter import TokenWindow, estimate_tokens
 from voxos.observability.logger import get_logger
 from voxos.observability.metrics import get_metrics
 
@@ -50,6 +55,7 @@ class _Slot:
     calls: int = 0
     tokens_used: int = 0
     rate_limited: int = 0
+    window: TokenWindow | None = None
 
     def cooling(self, model: str, now: float) -> bool:
         return self.cooldowns.get(model, 0.0) > now
@@ -95,16 +101,22 @@ class KeyPoolProvider(LLMProvider):
         fallback_models: list[str] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        tokens_per_minute: int | None = None,
+        requests_per_minute: int | None = None,
     ) -> None:
         if not providers:
             raise ValueError("KeyPoolProvider needs at least one provider")
         self._slots = [_Slot(i, p) for i, p in enumerate(providers)]
+        if tokens_per_minute or requests_per_minute:
+            for slot in self._slots:
+                slot.window = TokenWindow(tokens_per_minute or 1 << 30, requests_per_minute or 1 << 30)
         self._max_wait_s = max_wait_s
         # Interchangeable models; a model outside this list (e.g. the vision
         # model) is never swapped for one that cannot do its job.
         self._fallback_models = list(fallback_models or [])
         self._clock = clock
         self._sleep = sleep
+        self.paced = 0  # calls that waited for room instead of risking a 429
         self._turn = 0
 
     @property
@@ -115,9 +127,13 @@ class KeyPoolProvider(LLMProvider):
     def size(self) -> int:
         return len(self._slots)
 
-    def _pick(self, model: str) -> _Slot | None:
+    def _pick(self, model: str, need: int = 0) -> _Slot | None:
         now = self._clock()
-        usable = [s for s in self._slots if not s.disabled and not s.cooling(model, now)]
+        usable = [
+            s for s in self._slots
+            if not s.disabled and not s.cooling(model, now)
+            and (s.window is None or s.window.fits(model, need, now))
+        ]
         if not usable:
             return None
         turn, n = self._turn, len(self._slots)
@@ -133,18 +149,24 @@ class KeyPoolProvider(LLMProvider):
             ),
         )
 
-    def _wake_time(self, model: str) -> float | None:
+    def _wake_time(self, model: str, need: int = 0) -> float | None:
         live = [s for s in self._slots if not s.disabled]
         if not live:
             return None
-        return min(s.cooldowns.get(model, 0.0) for s in live)
+        now = self._clock()
+        return min(
+            max(s.cooldowns.get(model, 0.0), s.window.free_at(model, need, now) if s.window else 0.0)
+            for s in live
+        )
 
-    async def _next_slot(self, model: str, deadline: float, last_error: Exception | None) -> _Slot:
+    async def _next_slot(
+        self, model: str, deadline: float, last_error: Exception | None, need: int = 0
+    ) -> _Slot:
         while True:
-            slot = self._pick(model)
+            slot = self._pick(model, need)
             if slot is not None:
                 return slot
-            wake = self._wake_time(model)
+            wake = self._wake_time(model, need)
             if wake is None:
                 raise last_error or _pool_error(401, "Every API key in the pool was rejected")
             if wake > deadline:
@@ -156,6 +178,9 @@ class KeyPoolProvider(LLMProvider):
                     429, f"Every API key in the pool is rate limited for {model}",
                     retry_after=wake - self._clock(),
                 )
+            metrics.increment("llm.key_pool.paced", model=model)
+            self.paced += 1
+            log.info("llm_key_pool_pacing", model=model, wait_s=round(max(wake - self._clock(), 0.0), 2))
             await self._sleep(max(wake - self._clock(), 0.0))
 
     def _on_rate_limit(self, slot: _Slot, model: str, error: RateLimitError) -> None:
@@ -178,13 +203,14 @@ class KeyPoolProvider(LLMProvider):
     async def complete(self, messages: list[LLMMessage], config: LLMConfig) -> LLMResponse:
         last_error: Exception | None = None
         models = self._models_for(config.model)
+        need = estimate_tokens(messages, config.system_prompt, config.max_tokens)
         for n, model in enumerate(models):
             # Only the last model may wait for a key to cool down; a sibling
             # model with quota left beats waiting out a daily limit.
             immediate = n < len(models) - 1
             deadline = self._clock() + (0.0 if immediate else self._max_wait_s)
             try:
-                response = await self._complete_with(model, messages, config, deadline)
+                response = await self._complete_with(model, messages, config, deadline, need)
             except RateLimitError as e:
                 last_error = e
                 if n + 1 < len(models):
@@ -197,14 +223,15 @@ class KeyPoolProvider(LLMProvider):
         raise last_error
 
     async def _complete_with(
-        self, model: str, messages: list[LLMMessage], config: LLMConfig, deadline: float
+        self, model: str, messages: list[LLMMessage], config: LLMConfig, deadline: float, need: int = 0
     ) -> LLMResponse:
         if model != config.model:
             config = dataclasses.replace(config, model=model)
         last_error: Exception | None = None
         while True:
-            slot = await self._next_slot(model, deadline, last_error)
+            slot = await self._next_slot(model, deadline, last_error, need)
             slot.in_flight += 1
+            booking = slot.window.book(model, need, self._clock()) if slot.window else None
             try:
                 response = await slot.provider.complete(messages, config)
             except RateLimitError as e:
@@ -219,6 +246,8 @@ class KeyPoolProvider(LLMProvider):
                 slot.in_flight -= 1
             slot.calls += 1
             slot.tokens_used += response.total_tokens
+            if booking is not None:
+                TokenWindow.settle(booking, response.total_tokens)
             state: dict[str, Any] = getattr(slot.provider, "rate_limit_state", None) or {}
             if state.get("remaining_tokens") is not None:
                 slot.remaining_tokens = int(state["remaining_tokens"])
@@ -268,6 +297,9 @@ class KeyPoolProvider(LLMProvider):
                 "calls": s.calls,
                 "tokens_used": s.tokens_used,
                 "rate_limited": s.rate_limited,
+                "minute_tokens": (
+                    sum(s.window.used(m, now)[0] for m in list(s.window._calls)) if s.window else None
+                ),
             }
             for s in self._slots
         ]

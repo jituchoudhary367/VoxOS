@@ -119,6 +119,10 @@ class LLMSettings(BaseSettings):
     vision_model: str = "qwen/qwen3.8-27b"
     max_tokens: int = 4096
     temperature: float = 0.1
+    # Per-key, per-model limits Vox paces itself to (Groq free tier). Raise them
+    # on a paid plan; 0 turns pacing off (rely on 429s alone, as before).
+    key_tpm: int = 7500
+    key_rpm: int = 28
 
     # Where models run. cloud = Groq only; local = Ollama only (private,
     # offline); hybrid = Groq first, Ollama when Groq is down or rate-limited.

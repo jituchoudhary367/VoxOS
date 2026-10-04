@@ -103,6 +103,26 @@ MAX_QUESTIONS = 3
 MAX_FAILURES_IN_A_ROW = 3
 
 
+_LOOKING = frozenset({"browser.extract", "browser.screenshot", "vision.look", "desktop.screenshot"})
+
+
+def _unchanged_read(observations: list[dict[str, Any]], arguments: dict[str, Any]) -> int | None:
+    """Step number of an identical page read with nothing done since, else None.
+
+    A worker read the same Amazon results page four times in a row (10,000
+    characters each, re-sent every turn) and ran every key out of tokens.
+    """
+    selector = (arguments or {}).get("selector") or "body"
+    for i in range(len(observations) - 1, -1, -1):
+        o = observations[i]
+        if o.get("tool") == "browser.extract" and o.get("status") == "SUCCESS":
+            same = ((o.get("arguments") or {}).get("selector") or "body") == selector
+            return i + 1 if same else None
+        if o.get("tool") not in _LOOKING and o.get("status") == "SUCCESS":
+            return None  # something changed the page since
+    return None
+
+
 def _stuck(observations: list[dict[str, Any]]) -> bool:
     """The last few actions all failed: stop trying and answer with what is known."""
     tail = observations[-MAX_FAILURES_IN_A_ROW:]
@@ -320,6 +340,18 @@ class Worker:
                         "arguments": decision.get("arguments") or {},
                         "status": "SKIPPED",
                         "error": "Not run: you already read a page. Answer now from what you have.",
+                        "error_code": "LIMIT",
+                    }
+                elif decision["tool"] == "browser.extract" and (
+                    seen := _unchanged_read(observations, decision.get("arguments") or {})
+                ):
+                    metrics.increment("orchestration.worker.reread_skipped")
+                    observation = {
+                        "tool": decision["tool"],
+                        "arguments": decision.get("arguments") or {},
+                        "status": "SKIPPED",
+                        "error": f"Not run: the page has not changed since step {seen}; use that result "
+                                 "(or open a different page first).",
                         "error_code": "LIMIT",
                     }
                 else:

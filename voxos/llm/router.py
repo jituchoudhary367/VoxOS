@@ -179,6 +179,9 @@ def build_primary_provider(settings: Any) -> LLMProvider:
         # Groq quotas are per model: when one gpt-oss model is exhausted on
         # every key, the other still has its own full quota.
         fallback_models=[settings.fast_model, settings.strong_model],
+        # Stay just under each key's per-minute limits rather than hitting them.
+        tokens_per_minute=getattr(settings, "key_tpm", 0) or None,
+        requests_per_minute=getattr(settings, "key_rpm", 0) or None,
     )
 
 

@@ -16,6 +16,9 @@ def _private_user_data(tmp_path, monkeypatch):
     import voxos.core.profile.store as profile_store
 
     monkeypatch.setattr(profile_store, "_profile", None)
+    import voxos.core.sessions as sessions
+
+    monkeypatch.setattr(sessions, "_store", None)
 from typing import AsyncGenerator
 
 from voxos.core.task_manager.models import Task, TaskStatus
