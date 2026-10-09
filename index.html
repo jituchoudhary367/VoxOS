@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vox – Presentation</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><g fill='%23C4623F'><rect x='62.98' y='52.99' width='42.6' height='166.40' rx='21.3'/><rect x='120.22' y='132.86' width='42.6' height='166.40' rx='21.3'/><rect x='177.46' y='211.07' width='42.6' height='169.73' rx='21.3'/><rect x='234.70' y='284.29' width='42.6' height='183.04' rx='21.3'/><rect x='291.94' y='211.07' width='42.6' height='169.73' rx='21.3'/><rect x='349.18' y='132.86' width='42.6' height='166.40' rx='21.3'/><rect x='406.43' y='52.99' width='42.6' height='166.40' rx='21.3'/></g><circle cx='256' cy='174.8' r='41.27' fill='%233F6B4F'/></svg>">
+<style>
+  /* Colours and fonts mirror voxos/ui/theme.py (PALETTE, Fonts) */
+  :root {
+    --bg: #FBF8F4;
+    --surface: #FFFFFF;
+    --surface-alt: #F5EFE7;
+    --border: #EADFD3;
+    --border-strong: #DCCBBA;
+    --fg: #2B2420;
+    --fg-muted: #7D7068;
+    --fg-faint: #A89A90;
+    --terracotta: #C4623F;
+    --terracotta-dark: #A34E30;
+    --terracotta-soft: #F7E4DB;
+    --green: #3F6B4F;
+    --green-dark: #2F5440;
+    --green-soft: #E2EDE4;
+    --sage: #8BAE93;
+    --amber: #B7791F;
+    --amber-soft: #FBEFD9;
+    --danger: #B42318;
+    --danger-soft: #FBE4E1;
+    --radius: 14px;
+    --font-display: Georgia, Cambria, 'Times New Roman', serif;
+    --font-body: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+  }
+
+  /* Aurora glow, as in the desktop app */
+  .glow-blob {
+    position: fixed; border-radius: 50%; filter: blur(110px);
+    pointer-events: none; z-index: 0;
+  }
+  .glow-blob.a { width: 560px; height: 560px; top: -200px; right: -140px; background: rgba(196,98,63,0.16); }
+  .glow-blob.b { width: 460px; height: 460px; bottom: -180px; left: -120px; background: rgba(139,174,147,0.22); }
+
+  .glow-blob.a { animation: driftA 22s ease-in-out infinite alternate; }
+  .glow-blob.b { animation: driftB 27s ease-in-out infinite alternate; }
+  @keyframes driftA { to { translate: -90px 70px; scale: 1.15; } }
+  @keyframes driftB { to { translate: 110px -60px; scale: 1.2; } }
+
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: radial-gradient(rgba(43,36,32,0.05) 1px, transparent 1.4px);
+    background-size: 26px 26px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 45%, transparent 35%, #000 100%);
+    mask-image: radial-gradient(ellipse at 50% 45%, transparent 35%, #000 100%);
+  }
+
+  .progress {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200;
+    background: linear-gradient(90deg, var(--terracotta), #D2774F 60%, var(--sage));
+    transform-origin: left; transform: scaleX(0);
+    transition: transform 0.6s cubic-bezier(0.22, 0.8, 0.24, 1);
+  }
+
+  /* Brand, top left */
+  .brand {
+    position: fixed; top: 26px; left: 36px; z-index: 100;
+    display: flex; align-items: center; gap: 10px;
+    transition: opacity 0.4s;
+  }
+  .brand svg { width: 30px; height: 30px; }
+  .brand span {
+    font-family: var(--font-display); font-size: 22px;
+    letter-spacing: -0.4px; color: var(--fg);
+  }
+  body.on-title .brand { opacity: 0; }
+
+  .slide-counter {
+    position: fixed; top: 32px; right: 40px;
+    font-size: 13px; font-weight: 600;
+    color: var(--fg-faint); z-index: 100; letter-spacing: 1px;
+  }
+  .slide-counter .current { color: var(--terracotta); }
+
+  /* Slides */
+  .deck { position: relative; z-index: 1; width: 100%; height: 100%; }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 76px 80px 92px;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.45s ease, transform 0.6s cubic-bezier(0.22, 0.8, 0.24, 1), visibility 0.45s;
+  }
+  .slide.active { opacity: 1; visibility: visible; transform: none; }
+  .slide-inner { width: 100%; max-width: 1120px; }
+
+  /* Type */
+  .slide-label {
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 2.6px; text-transform: uppercase;
+    color: var(--terracotta); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .slide-label::before {
+    content: ''; width: 22px; height: 2px; border-radius: 2px;
+    background: var(--terracotta); transform-origin: left;
+  }
+  .slide-title {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 3.5vw, 44px);
+    font-weight: 400; line-height: 1.15; letter-spacing: -0.6px;
+    color: var(--fg); margin-bottom: 26px;
+  }
+  .slide-subtitle {
+    font-size: 17px; color: var(--fg-muted);
+    line-height: 1.65; max-width: 720px;
+  }
+  strong { font-weight: 600; }
+  .text-muted { color: var(--fg-muted); }
+  .mono { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 0.92em; }
+
+  .bullet-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .bullet-list li {
+    display: flex; align-items: flex-start; gap: 14px;
+    font-size: 16.5px; line-height: 1.55;
+  }
+  .bullet-list .mark {
+    flex-shrink: 0; width: 26px; height: 26px; margin-top: 1px;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+  .mark.bad { background: var(--danger-soft); color: var(--danger); }
+  .mark.good { background: var(--green-soft); color: var(--green); }
+  .mark.warm { background: var(--terracotta-soft); color: var(--terracotta-dark); }
+
+  /* Layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: center; }
+  .two-col.wide-left { grid-template-columns: 1.15fr 0.85fr; }
+  .two-col.wide-right { grid-template-columns: 0.85fr 1.15fr; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+  /* Cards */
+  .card {
+    position: relative; overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    box-shadow: 0 1px 2px rgba(43,36,32,0.04), 0 8px 24px rgba(43,36,32,0.04);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .card:hover, .node:hover, .tech:hover {
+    transform: translateY(-3px); border-color: var(--border-strong);
+    box-shadow: 0 2px 4px rgba(43,36,32,0.05), 0 16px 36px rgba(43,36,32,0.09);
+  }
+  .node, .tech { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
+  .card .bar { transform-origin: left; }
+  .card .bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .card-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.6px;
+    text-transform: uppercase; margin-bottom: 8px; color: var(--fg-faint);
+  }
+  .card-name { font-family: var(--font-display); font-size: 20px; margin-bottom: 8px; }
+  .card-desc { font-size: 13.5px; color: var(--fg-muted); line-height: 1.55; }
+  .c-terra { color: var(--terracotta); }
+  .c-green { color: var(--green); }
+  .c-amber { color: var(--amber); }
+  .c-danger { color: var(--danger); }
+
+  .chip {
+    display: inline-flex; align-items: center;
+    background: var(--surface-alt); border: 1px solid var(--border);
+    border-radius: 30px; padding: 5px 12px;
+    font-size: 12.5px; color: var(--fg); white-space: nowrap;
+  }
+  .chip.terra { background: var(--terracotta-soft); border-color: transparent; color: var(--terracotta-dark); }
+  .chip.green { background: var(--green-soft); border-color: transparent; color: var(--green-dark); }
+  .chip.amber { background: var(--amber-soft); border-color: transparent; color: var(--amber); }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  /* Flow diagrams */
+  .flow { display: flex; align-items: stretch; gap: 0; }
+  .node {
+    flex: 1; min-width: 0;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 16px 15px;
+    text-align: center;
+  }
+  .node-k { font-size: 10.5px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 6px; }
+  .node-t { font-family: var(--font-display); font-size: 18px; margin-bottom: 5px; }
+  .node-d { font-size: 12.5px; color: var(--fg-muted); line-height: 1.45; }
+  .node.terra { background: var(--terracotta-soft); border-color: #EFCDBD; }
+  .node.green { background: var(--green-soft); border-color: #C9DCCD; }
+  .node.plain { background: var(--surface-alt); }
+  .arrow {
+    flex: 0 0 34px; align-self: center; height: 2px; position: relative;
+    background: var(--border-strong); margin: 0 4px;
+  }
+  .arrow::after {
+    content: ''; position: absolute; right: -1px; top: -4px;
+    border-left: 8px solid var(--border-strong);
+    border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+  }
+  .lane {
+    border: 1px dashed var(--border-strong); border-radius: 18px;
+    padding: 14px 16px 16px;
+  }
+  .lane-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 10px; gap: 12px;
+  }
+  .lane-name { font-size: 11px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; }
+  .lane-note { font-size: 12.5px; color: var(--fg-muted); }
+  .gate {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 12px; padding: 12px 18px; font-size: 13.5px;
+  }
+
+  /* Architecture layers */
+  .layers { display: flex; flex-direction: column; gap: 8px; }
+  .layer {
+    display: grid; grid-template-columns: 150px 1fr; align-items: center; gap: 16px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 16px;
+  }
+  .layer-name { font-family: var(--font-display); font-size: 17px; }
+  .layer-name small {
+    display: block; font-family: var(--font-body); font-size: 10.5px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--fg-faint); margin-bottom: 1px;
+  }
+  .layer.core { background: var(--terracotta-soft); border-color: #EFCDBD; }
+
+  /* Stack rows */
+  .tech {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 11px; padding: 11px 16px;
+  }
+  .tech-role { font-size: 10.5px; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; }
+  .tech-name { font-size: 15px; font-weight: 600; margin-top: 1px; }
+  .tech-by { font-size: 12px; color: var(--fg-muted); text-align: right; }
+  .stack-col { display: flex; flex-direction: column; gap: 9px; }
+
+  /* Steps */
+  .step-flow { display: flex; flex-direction: column; }
+  .step-item { display: flex; align-items: flex-start; gap: 14px; position: relative; padding-bottom: 16px; }
+  .step-item:last-child { padding-bottom: 0; }
+  .step-item::before {
+    content: ''; position: absolute; left: 15px; top: 34px; bottom: 2px; width: 2px;
+    background: var(--border);
+  }
+  .step-item:last-child::before { display: none; }
+  .step-num {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+    background: var(--terracotta-soft); color: var(--terracotta-dark);
+  }
+  .step-item.done .step-num { background: var(--green-soft); color: var(--green-dark); }
+  .step-title { font-size: 15px; font-weight: 600; margin-bottom: 1px; }
+  .step-desc { font-size: 13px; color: var(--fg-muted); line-height: 1.45; }
+
+  .quote {
+    font-family: var(--font-display); font-size: 19px; line-height: 1.45;
+    font-style: italic; color: var(--fg);
+  }
+
+  /* Stat tiles */
+  .stat { text-align: left; }
+  .stat-num {
+    font-family: var(--font-display); font-size: clamp(30px, 3.4vw, 44px);
+    letter-spacing: -1px; line-height: 1.05; margin-bottom: 6px;
+  }
+  .stat-num small { font-size: 0.45em; letter-spacing: 0; color: var(--fg-muted); }
+  .stat-label { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+  .stat-note { font-size: 12.5px; color: var(--fg-muted); line-height: 1.45; }
+  .footnote { font-size: 12.5px; color: var(--fg-faint); margin-top: 16px; line-height: 1.5; }
+
+  /* Title slide */
+  .title-slide { text-align: center; }
+  .project-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 40px; padding: 7px 18px;
+    font-size: 12px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
+    color: var(--fg-muted); margin-bottom: 30px;
+  }
+  .project-badge i {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+    animation: pulse 2.2s ease infinite;
+  }
+  .hero-lockup { display: flex; align-items: center; justify-content: center; gap: 26px; margin-bottom: 14px; }
+  .hero-lockup svg { width: clamp(96px, 11vw, 140px); height: auto; }
+  .hero-lockup h1 {
+    font-family: var(--font-display); font-weight: 400;
+    font-size: clamp(72px, 9vw, 124px); letter-spacing: -3px; line-height: 1;
+  }
+  .hero-tag {
+    font-size: 13px; font-weight: 700; letter-spacing: 5px; text-transform: uppercase;
+    color: var(--fg-muted); margin-bottom: 18px;
+  }
+  .tagline { font-size: 19px; color: var(--fg-muted); margin-bottom: 40px; }
+  .team { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  .member {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 11px 20px; min-width: 170px;
+  }
+  .member b { display: block; font-size: 14.5px; font-weight: 600; }
+  .member span { font-size: 12.5px; color: var(--fg-faint); }
+  .guide { font-size: 14px; color: var(--fg-muted); }
+  .guide b { color: var(--fg); font-weight: 600; }
+
+  /* Logo motion: bars rise in, then breathe like a waveform; the dot is the listening light */
+  .logo-live { overflow: visible; }
+  .logo-live .bars rect, .logo-live .dot, .logo-live .ripple { transform-box: fill-box; transform-origin: center; }
+  .slide.active .logo-live .bars rect {
+    animation: barRise 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.2) backwards, breathe 2.6s ease-in-out infinite;
+    animation-delay: calc(var(--b) * 70ms + 150ms), calc(var(--b) * 140ms + 1100ms);
+  }
+  .logo-live .bars rect:nth-child(1), .logo-live .bars rect:nth-child(7) { --b: 0; }
+  .logo-live .bars rect:nth-child(2), .logo-live .bars rect:nth-child(6) { --b: 1; }
+  .logo-live .bars rect:nth-child(3), .logo-live .bars rect:nth-child(5) { --b: 2; }
+  .logo-live .bars rect:nth-child(4) { --b: 3; }
+  .slide.active .logo-live .dot { animation: dotPop 0.6s cubic-bezier(0.3, 1.6, 0.4, 1) 0.65s backwards; }
+  .logo-live .ripple { opacity: 0; }
+  .slide.active .logo-live .ripple { animation: ripple 2.6s ease-out 1.2s infinite; }
+  .slide.active .logo-live .ripple.r2 { animation-delay: 2.5s; }
+  .slide.active .hero-lockup h1 { animation: wordIn 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s backwards; }
+  @keyframes barRise { from { opacity: 0; transform: translateY(46px) scaleY(0.2); } }
+  @keyframes breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.84); } }
+  @keyframes dotPop { from { opacity: 0; transform: scale(0); } }
+  @keyframes ripple { 0% { opacity: 0.45; transform: scale(1); } 100% { opacity: 0; transform: scale(2.6); } }
+  @keyframes wordIn { from { opacity: 0; transform: translateX(-22px); letter-spacing: 6px; filter: blur(6px); } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* Conclusion */
+  .conclusion-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; padding: 34px 44px; text-align: center; max-width: 800px;
+    box-shadow: 0 12px 40px rgba(43,36,32,0.06);
+  }
+  .conclusion-box p { font-size: 18px; line-height: 1.75; }
+  .thank-you {
+    font-family: var(--font-display); font-size: clamp(40px, 4.6vw, 64px);
+    letter-spacing: -1.4px; margin-top: 38px; color: var(--terracotta);
+  }
+
+  /* Navigation */
+  .nav-controls {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 12px; z-index: 100;
+    background: rgba(255,255,255,0.86); backdrop-filter: blur(14px);
+    border: 1px solid var(--border); border-radius: 40px; padding: 6px 10px;
+    box-shadow: 0 6px 24px rgba(43,36,32,0.08);
+  }
+  .nav-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: none; background: transparent; color: var(--fg-muted);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s;
+  }
+  .nav-btn svg { width: 16px; height: 16px; }
+  .nav-btn:hover { background: var(--surface-alt); color: var(--fg); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .nav-btn:disabled:hover { background: transparent; color: var(--fg-muted); }
+  .nav-dots { display: flex; gap: 6px; padding: 0 6px; }
+  .nav-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border-strong); border: none;
+    cursor: pointer; transition: all 0.3s; padding: 0;
+  }
+  .nav-dot.active { background: var(--terracotta); width: 24px; border-radius: 4px; }
+
+  /* Entrance: --i is the item's order on its slide, set in JS */
+  .slide.active .anim-item {
+    animation: fadeSlideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 55ms + 90ms);
+  }
+  .slide.active .layer.anim-item, .slide.active .tech.anim-item { animation-name: fadeSlideRight; }
+  .slide.active .stat.anim-item { animation-name: popIn; }
+  @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(16px); } }
+  @keyframes fadeSlideRight { from { opacity: 0; transform: translateX(-22px); } }
+  @keyframes popIn { from { opacity: 0; transform: translateY(14px) scale(0.94); } }
+  @keyframes growX { from { transform: scaleX(0); } }
+  @keyframes growY { from { transform: scaleY(0); } }
+
+  .slide.active .slide-label::before { animation: growX 0.6s ease 0.25s backwards; }
+  .slide.active .card .bar { animation: growX 0.8s ease backwards; animation-delay: calc(var(--i, 0) * 55ms + 300ms); }
+  .slide.active .step-item::before {
+    transform-origin: top;
+    animation: growY 0.45s ease backwards; animation-delay: calc(var(--i, 0) * 55ms + 420ms);
+  }
+  .slide.active .step-num { animation: dotPop 0.5s cubic-bezier(0.3, 1.5, 0.4, 1) backwards; animation-delay: calc(var(--i, 0) * 55ms + 200ms); }
+
+  /* A signal travelling along each arrow */
+  .slide.active .arrow::before {
+    content: ''; position: absolute; top: -2px; left: 0;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--terracotta); opacity: 0;
+    animation: travel 1.9s ease-in-out 0.9s infinite;
+  }
+  .slide.active .flow .arrow ~ .arrow::before { animation-delay: 1.5s; }
+  @keyframes travel {
+    0% { left: 0; opacity: 0; } 15%, 80% { opacity: 1; }
+    100% { left: calc(100% - 8px); opacity: 0; }
+  }
+
+  .thank-you { background: linear-gradient(100deg, var(--terracotta-dark), #D2774F 45%, var(--green)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; padding-bottom: 6px; }
+  .end-mark { width: 62px; height: 62px; margin-top: 34px; }
+  .end-mark + .thank-you { margin-top: 8px; }
+
+  @media (max-height: 760px) {
+    .slide { padding: 64px 64px 80px; }
+    .slide-title { margin-bottom: 18px; }
+    .card { padding: 16px 18px; }
+    .layer { padding: 7px 14px; }
+    .tagline { margin-bottom: 26px; }
+  }
+
+  @media (max-width: 900px) {
+    .slide { padding: 64px 24px 84px; justify-content: flex-start; overflow-y: auto; }
+    .two-col, .two-col.wide-left, .two-col.wide-right,
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; gap: 14px; }
+    .flow { flex-direction: column; }
+    .arrow { flex: 0 0 20px; width: 2px; height: 20px; margin: 4px 0; }
+    .arrow::after { right: -4px; top: auto; bottom: -1px; border-top: 8px solid var(--border-strong); border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 0; }
+    .layer { grid-template-columns: 1fr; gap: 8px; }
+    .hero-lockup { gap: 14px; }
+    .nav-dots { display: none; }
+    .slide.active .arrow::before { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide { transition: opacity 0.2s; transform: none !important; }
+    .slide.active *, .slide.active *::before, .glow-blob, .project-badge i { animation: none !important; }
+    .logo-live .ripple, .slide.active .arrow::before { display: none; }
+    .progress { transition: none; }
+    .card:hover, .node:hover, .tech:hover { transform: none; }
+  }
+</style>
+</head>
+<body class="on-title">
+
+<!-- Vox mark: same geometry as voxos/ui/assets/vox-mark.svg -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="vox-bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D2774F"/><stop offset="1" stop-color="#AE4E2E"/>
+    </linearGradient>
+    <radialGradient id="vox-dot" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#6A957A"/><stop offset="1" stop-color="#3F6B4F"/>
+    </radialGradient>
+    <symbol id="vox-mark" viewBox="0 0 512 512">
+      <rect x="62.98" y="52.99" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+      <rect x="120.22" y="132.86" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+      <rect x="177.46" y="211.07" width="42.60" height="169.73" rx="21.30" fill="url(#vox-bar)"/>
+      <rect x="234.70" y="284.29" width="42.60" height="183.04" rx="21.30" fill="url(#vox-bar)"/>
+      <rect x="291.94" y="211.07" width="42.60" height="169.73" rx="21.30" fill="url(#vox-bar)"/>
+      <rect x="349.18" y="132.86" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+      <rect x="406.43" y="52.99" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+      <circle cx="256.00" cy="174.80" r="41.27" fill="url(#vox-dot)"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="progress" id="progress"></div>
+<div class="glow-blob a"></div>
+<div class="glow-blob b"></div>
+
+<div class="brand" aria-hidden="true">
+  <svg viewBox="0 0 512 512"><use href="#vox-mark"/></svg>
+  <span>Vox</span>
+</div>
+
+<div class="slide-counter">
+  <span class="current" id="slideNum">01</span> / <span id="slideTotal">15</span>
+</div>
+
+<div class="deck" id="deck">
+
+  <!-- Slide 1: Title -->
+  <section class="slide title-slide active">
+    <div class="slide-inner" style="display:flex;flex-direction:column;align-items:center;">
+      <div class="project-badge anim-item"><i></i> Sem 7 · Project II · 303105423</div>
+      <div class="hero-lockup anim-item">
+        <svg class="logo-live" viewBox="0 0 512 512" role="img" aria-label="Vox logo">
+          <g class="bars">
+            <rect x="62.98" y="52.99" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+            <rect x="120.22" y="132.86" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+            <rect x="177.46" y="211.07" width="42.60" height="169.73" rx="21.30" fill="url(#vox-bar)"/>
+            <rect x="234.70" y="284.29" width="42.60" height="183.04" rx="21.30" fill="url(#vox-bar)"/>
+            <rect x="291.94" y="211.07" width="42.60" height="169.73" rx="21.30" fill="url(#vox-bar)"/>
+            <rect x="349.18" y="132.86" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+            <rect x="406.43" y="52.99" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+          </g>
+          <circle class="ripple" cx="256.00" cy="174.80" r="41.27" fill="none" stroke="#3F6B4F" stroke-width="5"/>
+          <circle class="ripple r2" cx="256.00" cy="174.80" r="41.27" fill="none" stroke="#3F6B4F" stroke-width="5"/>
+          <circle class="dot" cx="256.00" cy="174.80" r="41.27" fill="url(#vox-dot)"/>
+        </svg>
+        <h1>Vox</h1>
+      </div>
+      <div class="hero-tag anim-item">Your voice. Your computer.</div>
+      <p class="tagline anim-item">A multi-agent voice assistant that works on your Windows PC for you</p>
+      <div class="team anim-item">
+        <div class="member"><b>Pranav Amrutkar</b><span>2303031570007</span></div>
+        <div class="member"><b>Abhijeet Singh</b><span>2303031570001</span></div>
+        <div class="member"><b>Jitendra Kumar</b><span>2303031570028</span></div>
+        <div class="member"><b>Manav Bhardwaj</b><span>2303031570035</span></div>
+      </div>
+      <p class="guide anim-item">Project Guide · <b>Prof. Akruti Pandwal</b></p>
+    </div>
+  </section>
+
+  <!-- Slide 2: Problem -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Problem Statement</div>
+      <h2 class="slide-title anim-item">Assistants talk. They rarely do the work.</h2>
+      <div class="two-col wide-left">
+        <ul class="bullet-list">
+          <li class="anim-item"><span class="mark bad">×</span><span><strong>Chat wrappers.</strong> Most assistants answer questions but cannot touch your files, apps or browser.</span></li>
+          <li class="anim-item"><span class="mark bad">×</span><span><strong>No planning.</strong> "Do A, then B, and also C" gets flattened into one confused action.</span></li>
+          <li class="anim-item"><span class="mark bad">×</span><span><strong>No verification.</strong> They say "done" without checking that anything happened.</span></li>
+          <li class="anim-item"><span class="mark bad">×</span><span><strong>Invented facts.</strong> Links, numbers and confirmations that no tool ever returned.</span></li>
+          <li class="anim-item"><span class="mark bad">×</span><span><strong>No brakes.</strong> An agent with shell and file access can do real damage on a misheard word.</span></li>
+        </ul>
+        <div class="card anim-item" style="padding:26px 28px;">
+          <div class="card-tag">What this costs the user</div>
+          <p class="quote" style="margin-bottom:16px;">"I asked it to send the file. It said it did. It didn't."</p>
+          <p class="card-desc">Trust is the product. An assistant that controls a computer has to plan, check its own work and ask before anything risky.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 3: What Vox is -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Our Answer</div>
+      <h2 class="slide-title anim-item">Say it, or type it. Vox does it on your PC.</h2>
+      <div class="grid-4">
+        <div class="card anim-item">
+          <div class="bar" style="background:var(--green);"></div>
+          <div class="card-tag c-green">Sense</div>
+          <div class="card-name">Listen</div>
+          <div class="card-desc">Wake word or Ctrl+Space. English, Hindi and Hinglish. Typed chat works the same way.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="bar" style="background:var(--terracotta);"></div>
+          <div class="card-tag c-terra">Think</div>
+          <div class="card-name">Plan</div>
+          <div class="card-desc">Simple requests take an instant rule path. Bigger ones are split into goals for parallel agents.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="bar" style="background:var(--amber);"></div>
+          <div class="card-tag c-amber">Act</div>
+          <div class="card-name">Do</div>
+          <div class="card-desc">85 real tools: files, apps, browser, system settings, documents, Gmail, Calendar, Drive.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="bar" style="background:var(--green-dark);"></div>
+          <div class="card-tag c-green">Verify</div>
+          <div class="card-name">Check</div>
+          <div class="card-desc">Every step is verified. Risky actions wait for your approval. Replies are grounded in tool output.</div>
+        </div>
+      </div>
+      <p class="slide-subtitle anim-item" style="margin-top:24px;max-width:none;">Runs as a Windows desktop app with a tray icon and a floating voice pill. Cloud models, local models through Ollama, or both.</p>
+    </div>
+  </section>
+
+  <!-- Slide 4: Request flow -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">System Workflow</div>
+      <h2 class="slide-title anim-item">One request, two possible paths</h2>
+      <div class="anim-item" style="display:grid;grid-template-columns:270px 34px 1fr;align-items:center;">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="node plain">
+            <div class="node-k text-muted">You</div>
+            <div class="node-t">Voice or text</div>
+            <div class="node-d">Speech → text, turn ends on silence</div>
+          </div>
+          <div class="node green">
+            <div class="node-k c-green">Agent 01</div>
+            <div class="node-t">Listener</div>
+            <div class="node-d">Rules first, model only if no rule fits</div>
+          </div>
+        </div>
+        <div class="arrow" style="margin:0 2px;"></div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="lane">
+            <div class="lane-head">
+              <span class="lane-name c-green">Instant path</span>
+              <span class="lane-note">0 model calls · about 2 ms to route</span>
+            </div>
+            <div class="flow">
+              <div class="node"><div class="node-t">Rule match</div><div class="node-d">"timer for 10 minutes", "dark mode", "lock my PC"</div></div>
+              <div class="arrow"></div>
+              <div class="node"><div class="node-t">One tool</div><div class="node-d">Runs directly</div></div>
+              <div class="arrow"></div>
+              <div class="node"><div class="node-t">Reply</div><div class="node-d">A plain sentence</div></div>
+            </div>
+          </div>
+          <div class="lane" style="border-color:#E6BCA9;">
+            <div class="lane-head">
+              <span class="lane-name c-terra">Agent path</span>
+              <span class="lane-note">LangGraph · compound or open-ended requests</span>
+            </div>
+            <div class="flow">
+              <div class="node terra"><div class="node-t">Coordinator</div><div class="node-d">Splits into goals, picks tool families</div></div>
+              <div class="arrow"></div>
+              <div class="node terra"><div class="node-t">Workers</div><div class="node-d">In parallel: act, observe, verify, up to 6 steps</div></div>
+              <div class="arrow"></div>
+              <div class="node terra"><div class="node-t">Synthesizer</div><div class="node-d">One grounded answer</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="gate anim-item" style="margin-top:14px;">
+        <strong>Risk engine on every tool call</strong>
+        <span class="chip green">Low: runs</span>
+        <span class="chip amber">High: asks you first</span>
+        <span class="chip" style="background:var(--danger-soft);border-color:transparent;color:var(--danger);">Critical: blocked</span>
+        <span class="text-muted">If the instant path misses, the request falls through to the agents.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 5: Architecture -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Architecture Overview</div>
+      <h2 class="slide-title anim-item">Layers, top to bottom</h2>
+      <div class="layers">
+        <div class="layer anim-item">
+          <div class="layer-name"><small>Layer 1</small>Interface</div>
+          <div class="chips"><span class="chip">Desktop app (PySide6)</span><span class="chip">Floating voice pill</span><span class="chip">System tray</span><span class="chip">REST + WebSocket API</span></div>
+        </div>
+        <div class="layer anim-item">
+          <div class="layer-name"><small>Layer 2</small>Voice</div>
+          <div class="chips"><span class="chip">Wake word</span><span class="chip">Ctrl+Space tap / hold</span><span class="chip">Silero VAD</span><span class="chip">Mic gate (no self-echo)</span><span class="chip">Streaming STT</span><span class="chip">Streaming TTS</span></div>
+        </div>
+        <div class="layer core anim-item">
+          <div class="layer-name"><small>Layer 3</small>Agents</div>
+          <div class="chips"><span class="chip terra" style="background:#fff;">Listener</span><span class="chip terra" style="background:#fff;">Coordinator</span><span class="chip terra" style="background:#fff;">Workers (Executor + Overseer)</span><span class="chip terra" style="background:#fff;">Synthesizer</span><span class="chip terra" style="background:#fff;">Strategist (sequential plans)</span></div>
+        </div>
+        <div class="layer anim-item">
+          <div class="layer-name"><small>Layer 4</small>Safety</div>
+          <div class="chips"><span class="chip amber">Risk classifier</span><span class="chip amber">Approval gateway</span><span class="chip amber">Permissions</span><span class="chip amber">File sandbox</span><span class="chip amber">Credential vault</span></div>
+        </div>
+        <div class="layer anim-item">
+          <div class="layer-name"><small>Layer 5</small>Tools</div>
+          <div class="chips"><span class="chip green">85 tools in 15 families</span><span class="chip green">MCP client for external servers</span><span class="chip green">Playwright browser</span><span class="chip green">Windows UI Automation</span></div>
+        </div>
+        <div class="layer anim-item">
+          <div class="layer-name"><small>Layer 6</small>Models</div>
+          <div class="chips"><span class="chip">Groq key pool</span><span class="chip">→ Gemini</span><span class="chip">→ OpenRouter</span><span class="chip">→ Ollama (local)</span><span class="chip">Rate-limit pacing</span></div>
+        </div>
+        <div class="layer anim-item">
+          <div class="layer-name"><small>Layer 7</small>State</div>
+          <div class="chips"><span class="chip">Chat sessions on disk</span><span class="chip">PostgreSQL</span><span class="chip">Redis events</span><span class="chip">Local user profile</span><span class="chip">Memory</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 6: Agents -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Agent Responsibilities</div>
+      <h2 class="slide-title anim-item">Each agent has one job</h2>
+      <div class="grid-2">
+        <div class="card anim-item">
+          <div class="bar" style="background:linear-gradient(90deg,var(--green),transparent);"></div>
+          <div class="card-tag c-green">Agent 01</div>
+          <div class="card-name">Listener</div>
+          <div class="card-desc">Understands the request. Whole-sentence rules catch everyday commands instantly. Anything else goes to a small fast model that names the intent and its arguments.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="bar" style="background:linear-gradient(90deg,var(--terracotta),transparent);"></div>
+          <div class="card-tag c-terra">Agent 02</div>
+          <div class="card-name">Coordinator</div>
+          <div class="card-desc">Splits a request only where the parts can run in parallel, and gives each goal just the tool families it needs. Knows recent turns and open browser tabs.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="bar" style="background:linear-gradient(90deg,var(--amber),transparent);"></div>
+          <div class="card-tag c-amber">Agent 03</div>
+          <div class="card-name">Workers</div>
+          <div class="card-desc">One per goal. Act, observe, decide again. The Executor runs each tool and the Overseer verifies the result. A worker can ask you a question or stop when blocked.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="bar" style="background:linear-gradient(90deg,var(--green-dark),transparent);"></div>
+          <div class="card-tag c-green">Agent 04</div>
+          <div class="card-name">Synthesizer</div>
+          <div class="card-desc">Writes one reply from what the workers actually found. Links and facts that no tool returned are removed in code, not left to the model's honesty.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 7: Tools -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">What Vox Can Do</div>
+      <h2 class="slide-title anim-item">85 tools across 15 families</h2>
+      <div class="grid-3">
+        <div class="card anim-item">
+          <div class="card-tag c-terra">Files &amp; documents</div>
+          <div class="card-desc">Find, read, move, rename, organize a folder, zip and unzip. Write Word, Excel, PDF and CSV. Delete goes to the Recycle Bin.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-terra">Apps &amp; desktop</div>
+          <div class="card-desc">Open and close apps, manage windows, clipboard, keyboard and mouse. Click buttons by name through Windows UI Automation.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-terra">Browser &amp; web</div>
+          <div class="card-desc">Search, open pages, read and extract, fill forms, control media. One tab per task, or attach to your own Chrome.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-green">System</div>
+          <div class="card-desc">Volume, brightness, dark mode, Wi-Fi, Bluetooth, lock, battery, RAM, drives, and which app is using the most memory.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-green">Google &amp; messaging</div>
+          <div class="card-desc">Gmail search, read, draft and send. Calendar events. Drive search and read. WhatsApp and email drafts from saved contacts.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-green">Time, memory &amp; more</div>
+          <div class="card-desc">Timers, reminders and daily routines. Calculator and Python. Long-term memory. "What's on my screen?" through a vision model.</div>
+        </div>
+      </div>
+      <p class="footnote anim-item">Plus any external tool server through the Model Context Protocol (MCP). Read-only tools run freely; everything else needs approval.</p>
+    </div>
+  </section>
+
+  <!-- Slide 8: Safety -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Safety &amp; Trust</div>
+      <h2 class="slide-title anim-item">Brakes are built into the code, not the prompt</h2>
+      <div class="two-col">
+        <ul class="bullet-list">
+          <li class="anim-item"><span class="mark warm">1</span><span><strong>Risk engine.</strong> Every tool call is classified. High-risk actions show an Approve / Deny card. Dangerous shell patterns are blocked outright.</span></li>
+          <li class="anim-item"><span class="mark warm">2</span><span><strong>Permissions.</strong> Unknown tools are denied by default. Executor and tool runner both enforce it.</span></li>
+          <li class="anim-item"><span class="mark warm">3</span><span><strong>Private paths.</strong> Keys, <span class="mono">.env</span> files, dot-folders and AppData stay unreadable.</span></li>
+        </ul>
+        <ul class="bullet-list">
+          <li class="anim-item"><span class="mark good">4</span><span><strong>Passwords never reach the model.</strong> Logins live in Windows Credential Manager and are filled only on the matching https site.</span></li>
+          <li class="anim-item"><span class="mark good">5</span><span><strong>Nothing irreversible without a yes.</strong> Sending mail, inviting people, closing apps, final "Buy" clicks.</span></li>
+          <li class="anim-item"><span class="mark good">6</span><span><strong>Grounded replies.</strong> A link in an answer must appear in tool output, or it is removed.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 9: Tech stack -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Technology Stack</div>
+      <h2 class="slide-title anim-item">Models and services behind Vox</h2>
+      <div class="grid-3">
+        <div class="stack-col">
+          <div class="tech anim-item"><div><div class="tech-role">Listener + vision</div><div class="tech-name">Qwen 3.8 27B</div></div><div class="tech-by">Groq</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Workers (tool steps)</div><div class="tech-name">GPT-OSS 20B</div></div><div class="tech-by">Groq</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Strong reasoning</div><div class="tech-name">GPT-OSS 120B</div></div><div class="tech-by">Groq</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Backup chain</div><div class="tech-name">Gemini 2.5 Flash · OpenRouter</div></div><div class="tech-by">Cloud</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Offline / private</div><div class="tech-name">Qwen 3.5 4B</div></div><div class="tech-by">Ollama</div></div>
+        </div>
+        <div class="stack-col">
+          <div class="tech anim-item"><div><div class="tech-role">Voice pipeline</div><div class="tech-name">Pipecat</div></div><div class="tech-by">Local</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Speech-to-text</div><div class="tech-name">Nova-3 (multilingual)</div></div><div class="tech-by">Deepgram</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Text-to-speech</div><div class="tech-name">Aura · Edge TTS (Hindi)</div></div><div class="tech-by">Streaming</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Turn detection</div><div class="tech-name">Silero VAD</div></div><div class="tech-by">Local</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Wake word</div><div class="tech-name">openWakeWord</div></div><div class="tech-by">Local</div></div>
+        </div>
+        <div class="stack-col">
+          <div class="tech anim-item"><div><div class="tech-role">Orchestration</div><div class="tech-name">LangGraph</div></div><div class="tech-by">Python 3.13</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Backend</div><div class="tech-name">FastAPI</div></div><div class="tech-by">REST + WS</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Desktop app</div><div class="tech-name">PySide6 (Qt)</div></div><div class="tech-by">Windows</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Automation</div><div class="tech-name">Playwright · pywinauto</div></div><div class="tech-by">Browser + UI</div></div>
+          <div class="tech anim-item"><div><div class="tech-role">Storage</div><div class="tech-name">PostgreSQL · Redis</div></div><div class="tech-by">+ local files</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 10: Desktop app -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">The Desktop App</div>
+      <h2 class="slide-title anim-item">You can see what Vox is doing</h2>
+      <div class="grid-3">
+        <div class="card anim-item">
+          <div class="card-name">Live agent steps</div>
+          <div class="card-desc">Each request shows its steps as they run, then folds to "4 steps · 3.2 s".</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-name">Approval cards</div>
+          <div class="card-desc">Risky actions pause with Approve / Deny right in the chat.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-name">Question cards</div>
+          <div class="card-desc">When Vox is unsure it asks, with numbered options. Answer by click, key or voice ("the second one", "doosra wala").</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-name">Voice pill</div>
+          <div class="card-desc">A small floating pill while you talk. The window stays out of the way. Say "stop" to cancel.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-name">Routines &amp; reminders</div>
+          <div class="card-desc">Daily routines, timers and reminders with tray notifications, set by voice or in the Routines tab.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-name">Usage &amp; settings</div>
+          <div class="card-desc">Requests, success rate, response times and per-key quota. Keys, models and local mode are set in the app.</div>
+        </div>
+      </div>
+      <div class="chips anim-item" style="margin-top:18px;">
+        <span class="chip terra">Chat</span><span class="chip terra">Voice</span><span class="chip terra">Routines</span><span class="chip terra">Usage</span><span class="chip terra">Profile</span><span class="chip terra">Settings</span>
+        <span class="chip">Chats survive restarts</span><span class="chip">Cloud · Hybrid · Local</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 11: Demo -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Live Demonstration</div>
+      <h2 class="slide-title anim-item">One sentence, three jobs at once</h2>
+      <div class="two-col wide-right">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="card anim-item" style="border-left:3px solid var(--terracotta);padding:22px 24px;">
+            <div class="card-tag c-terra">Agent path</div>
+            <p class="quote">"What's my battery, how many files are in Downloads, and what's the latest AI news?"</p>
+          </div>
+          <div class="card anim-item" style="border-left:3px solid var(--green);padding:18px 24px;">
+            <div class="card-tag c-green">Instant path</div>
+            <p class="quote" style="font-size:17px;">"Set a timer for 10 minutes."</p>
+            <p class="card-desc" style="margin-top:6px;">Rule match, no model call.</p>
+          </div>
+          <div class="card anim-item" style="border-left:3px solid var(--amber);padding:18px 24px;">
+            <div class="card-tag c-amber">Approval</div>
+            <p class="quote" style="font-size:17px;">"Mail the report to Pranav."</p>
+            <p class="card-desc" style="margin-top:6px;">Draft is shown. Nothing is sent until you approve.</p>
+          </div>
+        </div>
+        <div class="step-flow">
+          <div class="step-item anim-item">
+            <div class="step-num">1</div>
+            <div><div class="step-title">Heard</div><div class="step-desc">Speech is transcribed as you talk. Silence ends the turn.</div></div>
+          </div>
+          <div class="step-item anim-item">
+            <div class="step-num">2</div>
+            <div><div class="step-title">Listener: no single rule fits</div><div class="step-desc">Three intents in one sentence, so it goes to the agents.</div></div>
+          </div>
+          <div class="step-item anim-item">
+            <div class="step-num">3</div>
+            <div><div class="step-title">Coordinator splits it</div><div class="step-desc">Three goals: system, files, web. Each gets only its own tools.</div></div>
+          </div>
+          <div class="step-item anim-item">
+            <div class="step-num">4</div>
+            <div><div class="step-title">Three workers run in parallel</div><div class="step-desc">Each acts, reads the result and is verified by the Overseer. Steps appear live in the app.</div></div>
+          </div>
+          <div class="step-item done anim-item">
+            <div class="step-num">5</div>
+            <div><div class="step-title">One spoken answer</div><div class="step-desc">The Synthesizer joins the three results into a single reply with the real numbers.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 12: Results -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Results</div>
+      <h2 class="slide-title anim-item">Measured, not claimed</h2>
+      <div class="grid-4">
+        <div class="card stat anim-item">
+          <div class="stat-num c-green"><span data-count="100">100</span>%</div>
+          <div class="stat-label">Task success</div>
+          <div class="stat-note">60 of 60 runs. 20 tasks × 3, from single commands to parallel multi-step.</div>
+        </div>
+        <div class="card stat anim-item">
+          <div class="stat-num c-terra"><span data-count="2.1" data-decimals="1">2.1</span> <small>ms</small></div>
+          <div class="stat-label">Instant-path routing</div>
+          <div class="stat-note">Median, against 1,745 ms when a model has to decide.</div>
+        </div>
+        <div class="card stat anim-item">
+          <div class="stat-num c-green">10 / 10</div>
+          <div class="stat-label">Failure recovery</div>
+          <div class="stat-note">Fault-injected runs that the agents replanned and finished.</div>
+        </div>
+        <div class="card stat anim-item">
+          <div class="stat-num c-amber"><span data-count="94">94</span>%</div>
+          <div class="stat-label">Risky commands stopped</div>
+          <div class="stat-note">Held-out set, approval or block. Classifier precision 94.4%.</div>
+        </div>
+      </div>
+      <div class="grid-3" style="margin-top:14px;">
+        <div class="card stat anim-item">
+          <div class="stat-label">1,172 automated tests</div>
+          <div class="stat-note">Unit and tool tests across agents, tools, voice and UI.</div>
+        </div>
+        <div class="card stat anim-item">
+          <div class="stat-label">21 of 22 everyday requests right</div>
+          <div class="stat-note">Fresh real-world requests, run end to end on a real desktop.</div>
+        </div>
+        <div class="card stat anim-item">
+          <div class="stat-label">17–24 s → under 1 s</div>
+          <div class="stat-note">"What time is it?" after moving database and event writes to the background.</div>
+        </div>
+      </div>
+      <p class="footnote anim-item">Benchmark suite in <span class="mono">benchmarks/RESULTS.md</span>, sequential pipeline mode. Windows 11, Intel Core Ultra 7 155H, 16 GB RAM.</p>
+    </div>
+  </section>
+
+  <!-- Slide 13: Limitations -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Limitations</div>
+      <h2 class="slide-title anim-item">Where Vox still falls short</h2>
+      <div class="grid-2">
+        <div class="card anim-item">
+          <div class="card-tag c-danger">Model quota</div>
+          <div class="card-desc">Free-tier limits (about 8K tokens a minute per key and model) slow down heavy web tasks. Vox paces itself and rotates keys, but the ceiling is real.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-danger">Complex websites</div>
+          <div class="card-desc">Shopping flows with ads, pop-ups and bot checks are unreliable. Search and reading work; full checkout does not yet.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-danger">Wake word</div>
+          <div class="card-desc">No trained "Hey Vox" model yet, so a stock wake word stands in. The hotkey is the dependable trigger today.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-danger">Setup &amp; platform</div>
+          <div class="card-desc">Windows only, and it still needs a developer setup with API keys. There is no one-click installer.</div>
+        </div>
+      </div>
+      <p class="footnote anim-item">The risk classifier alone catches 68% of risky commands on unseen data; the approval gate lifts that to 94% at the cost of more prompts.</p>
+    </div>
+  </section>
+
+  <!-- Slide 14: Future -->
+  <section class="slide">
+    <div class="slide-inner">
+      <div class="slide-label anim-item">Future Scope</div>
+      <h2 class="slide-title anim-item">From project to product</h2>
+      <div class="flow anim-item">
+        <div class="node" style="text-align:left;">
+          <div class="node-k c-terra">Phase 1</div>
+          <div class="node-t">Installable</div>
+          <div class="node-d">One-click Windows installer, first-run setup, local storage, no developer tools needed.</div>
+        </div>
+        <div class="arrow"></div>
+        <div class="node" style="text-align:left;">
+          <div class="node-k c-terra">Phase 2</div>
+          <div class="node-t">Usable by anyone</div>
+          <div class="node-d">Accounts and a cloud gateway so users need no API keys. Free local tier, auto-update, code signing.</div>
+        </div>
+        <div class="arrow"></div>
+        <div class="node" style="text-align:left;">
+          <div class="node-k c-terra">Phase 3</div>
+          <div class="node-t">Launch</div>
+          <div class="node-d">Hinglish-first positioning for India, Microsoft Store and winget, public beta.</div>
+        </div>
+      </div>
+      <div class="grid-3" style="margin-top:16px;">
+        <div class="card anim-item">
+          <div class="card-tag c-green">Voice</div>
+          <div class="card-desc">Train a custom "Hey Vox" wake word. Better interruption while Vox is speaking.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-green">Agents</div>
+          <div class="card-desc">Long-running background tasks: several at once, and Vox tells you when each finishes.</div>
+        </div>
+        <div class="card anim-item">
+          <div class="card-tag c-green">Reach</div>
+          <div class="card-desc">Manage MCP servers from Settings, so new tools plug in without code.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 15: Conclusion -->
+  <section class="slide">
+    <div class="slide-inner" style="display:flex;flex-direction:column;align-items:center;">
+      <div class="slide-label anim-item">Conclusion</div>
+      <div class="conclusion-box anim-item">
+        <p>Vox shows that an assistant can be trusted with a real computer when <strong>understanding, planning, acting and checking</strong> are separate jobs, simple requests skip the model entirely, and every risky step waits for the user.</p>
+      </div>
+      <svg class="logo-live end-mark anim-item" viewBox="0 0 512 512" aria-hidden="true">
+        <g class="bars">
+          <rect x="62.98" y="52.99" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+          <rect x="120.22" y="132.86" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+          <rect x="177.46" y="211.07" width="42.60" height="169.73" rx="21.30" fill="url(#vox-bar)"/>
+          <rect x="234.70" y="284.29" width="42.60" height="183.04" rx="21.30" fill="url(#vox-bar)"/>
+          <rect x="291.94" y="211.07" width="42.60" height="169.73" rx="21.30" fill="url(#vox-bar)"/>
+          <rect x="349.18" y="132.86" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+          <rect x="406.43" y="52.99" width="42.60" height="166.40" rx="21.30" fill="url(#vox-bar)"/>
+        </g>
+        <circle class="dot" cx="256.00" cy="174.80" r="41.27" fill="url(#vox-dot)"/>
+      </svg>
+      <div class="thank-you anim-item">Thank you</div>
+      <p class="text-muted anim-item" style="margin-top:10px;font-size:15px;">Questions?</p>
+    </div>
+  </section>
+
+</div>
+
+<!-- Navigation -->
+<nav class="nav-controls" aria-label="Slide navigation">
+  <button class="nav-btn" id="prevBtn" aria-label="Previous slide" disabled>
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+  </button>
+  <div class="nav-dots" id="navDots"></div>
+  <button class="nav-btn" id="nextBtn" aria-label="Next slide">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg>
+  </button>
+</nav>
+
+<script>
+  /* Slide navigation logic */
+  const slides = document.querySelectorAll('.slide');
+  const totalSlides = slides.length;
+  let currentSlide = 0;
+
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const navDotsContainer = document.getElementById('navDots');
+  const slideNumEl = document.getElementById('slideNum');
+  document.getElementById('slideTotal').textContent = String(totalSlides).padStart(2, '0');
+
+  /* Build navigation dots */
+  for (let i = 0; i < totalSlides; i++) {
+    const dot = document.createElement('button');
+    dot.classList.add('nav-dot');
+    if (i === 0) dot.classList.add('active');
+    dot.setAttribute('aria-label', `Go to slide ${i + 1}`);
+    dot.addEventListener('click', () => goToSlide(i));
+    navDotsContainer.appendChild(dot);
+  }
+
+  /* Stagger order for entrance animations */
+  slides.forEach((slide) => {
+    slide.querySelectorAll('.anim-item').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 16)));
+  });
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const progressEl = document.getElementById('progress');
+
+  function goToSlide(index) {
+    if (index < 0 || index >= totalSlides || index === currentSlide) return;
+    const dir = index > currentSlide ? 1 : -1;
+    const prev = slides[currentSlide];
+    const next = slides[index];
+    /* Incoming slide starts on the side we are moving towards */
+    next.style.transition = 'none';
+    next.style.transform = `translateX(${dir * 48}px)`;
+    void next.offsetWidth;
+    next.style.transition = '';
+    next.style.transform = '';
+    prev.style.transform = `translateX(${-dir * 48}px)`;
+    prev.classList.remove('active');
+    currentSlide = index;
+    next.classList.add('active');
+    updateNav();
+    countUp(next);
+  }
+
+  /* Numbers on a slide count up when it opens */
+  function countUp(slide) {
+    slide.querySelectorAll('[data-count]').forEach((el) => {
+      const target = parseFloat(el.dataset.count);
+      const decimals = parseInt(el.dataset.decimals || '0', 10);
+      if (reducedMotion) { el.textContent = target.toFixed(decimals); return; }
+      const start = performance.now() + 350;
+      const duration = 1100;
+      el.textContent = (0).toFixed(decimals);
+      function tick(now) {
+        if (!slide.classList.contains('active')) { el.textContent = target.toFixed(decimals); return; }
+        const t = Math.min(Math.max((now - start) / duration, 0), 1);
+        el.textContent = (target * (1 - Math.pow(1 - t, 3))).toFixed(decimals);
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  function updateNav() {
+    /* Update dots */
+    const dots = navDotsContainer.querySelectorAll('.nav-dot');
+    dots.forEach((dot, i) => {
+      dot.classList.toggle('active', i === currentSlide);
+    });
+    /* Update buttons */
+    prevBtn.disabled = currentSlide === 0;
+    nextBtn.disabled = currentSlide === totalSlides - 1;
+    /* Update counter */
+    slideNumEl.textContent = String(currentSlide + 1).padStart(2, '0');
+    /* Corner brand hides on the title slide, which carries the full logo */
+    document.body.classList.toggle('on-title', currentSlide === 0);
+    progressEl.style.transform = `scaleX(${(currentSlide + 1) / totalSlides})`;
+  }
+  updateNav();
+
+  prevBtn.addEventListener('click', () => goToSlide(currentSlide - 1));
+  nextBtn.addEventListener('click', () => goToSlide(currentSlide + 1));
+
+  /* Keyboard navigation */
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault();
+      goToSlide(currentSlide + 1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+      e.preventDefault();
+      goToSlide(currentSlide - 1);
+    } else if (e.key === 'f' || e.key === 'F') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      goToSlide(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      goToSlide(totalSlides - 1);
+    }
+  });
+
+  /* Touch swipe support */
+  let touchStartX = 0;
+  let touchStartY = 0;
+  document.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].screenX - touchStartX;
+    const dy = e.changedTouches[0].screenY - touchStartY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      if (dx < 0) goToSlide(currentSlide + 1);
+      else goToSlide(currentSlide - 1);
+    }
+  }, { passive: true });
+
+  /* Subtle parallax on mouse move for glow blobs */
+  const blobA = document.querySelector('.glow-blob.a');
+  const blobB = document.querySelector('.glow-blob.b');
+  document.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 30;
+    const y = (e.clientY / window.innerHeight - 0.5) * 30;
+    blobA.style.transform = `translate(${x}px, ${y}px)`;
+    blobB.style.transform = `translate(${-x}px, ${-y}px)`;
+  });
+</script>
+</body>
+</html>
